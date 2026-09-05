@@ -1,0 +1,2 @@
+# Dependencias serao adicionadas pelas RFCs que implementarem o pipeline.
+
