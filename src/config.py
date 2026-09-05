@@ -95,3 +95,19 @@ CLASS_ORDER: list[int] = [0, 1]
 
 SPLIT_REPORT_PATH: Path = Path("reports/metrics/data_split.json")
 """Caminho para o artefato de auditoria do split."""
+
+# ──────────────────────────────────────────────
+#  RFC-0004: Experimentos Bayesianos Univariados
+# ──────────────────────────────────────────────
+
+AGE_EXAMPLES: list[int] = [20, 40, 60, 80]
+"""Valores predefinidos de age para tabelas de exemplo univariado."""
+
+DURATION_EXAMPLES: list[int] = [100, 300, 500, 1000]
+"""Valores predefinidos de duration para tabelas de exemplo univariado."""
+
+UNIVARIATE_FIGURES_DIR: Path = Path("reports/figures")
+"""Diretório de saída para figuras da análise univariada."""
+
+UNIVARIATE_METRICS_DIR: Path = Path("reports/metrics")
+"""Diretório de saída para métricas/tabelas da análise univariada."""
