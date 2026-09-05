@@ -112,7 +112,7 @@ class TestValidateRawData:
         assert np.all(np.isfinite(raw_df["duration"]))
 
     def test_marital_categories(self, raw_df: pd.DataFrame) -> None:
-        assert set(raw_df["marital"].unique()) == MARITAL_CATEGORIES
+        assert set(raw_df["marital"].unique()) == set(MARITAL_CATEGORIES)
 
     def test_target_categories(self, raw_df: pd.DataFrame) -> None:
         assert set(raw_df[TARGET_COLUMN].unique()) == {"no", "yes"}
