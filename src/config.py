@@ -96,6 +96,9 @@ CLASS_ORDER: list[int] = [0, 1]
 SPLIT_REPORT_PATH: Path = Path("reports/metrics/data_split.json")
 """Caminho para o artefato de auditoria do split."""
 
+MODEL_PARAMETERS_PATH: Path = Path("reports/metrics/model_parameters.json")
+"""Parâmetros do classificador misto e identificação do dataset/split (RFC-0005)."""
+
 # ──────────────────────────────────────────────
 #  RFC-0004: Experimentos Bayesianos Univariados
 # ──────────────────────────────────────────────

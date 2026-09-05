@@ -7,6 +7,7 @@ htmlcov/
 venv/
 .ipynb_checkpoints/
 reports/metrics/*.json
+!reports/metrics/model_parameters.json
 reports/figures/*.png
 data/raw/*.zip
 data/raw/uci/
