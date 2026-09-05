@@ -1,4 +1,4 @@
-"""Configuração imutável do projeto — RFC-0001 / RFC-0002.
+"""Configuração imutável do projeto — RFC-0001 / RFC-0002 / RFC-0003.
 
 Todas as constantes usadas pelo pipeline residem aqui.
 Nenhum módulo deve redefinir esses valores localmente.
@@ -50,7 +50,7 @@ TARGET_MAPPING: dict[str, int] = {"no": 0, "yes": 1}
 #  Domínios esperados (identidade da versão)
 # ──────────────────────────────────────────────
 
-MARITAL_CATEGORIES: frozenset[str] = frozenset({"divorced", "married", "single"})
+MARITAL_CATEGORIES: tuple[str, ...] = ("divorced", "married", "single")
 """Categorias válidas de estado civil na versão congelada."""
 
 TARGET_CATEGORIES: frozenset[str] = frozenset({"no", "yes"})
@@ -78,6 +78,9 @@ RANDOM_STATE: int = 42
 
 LAPLACE_ALPHA: float = 1.0
 """Parâmetro de suavização para probabilidades categóricas."""
+
+VARIANCE_FLOOR: float = 1e-12
+"""Variância substituta somente quando a estimativa Gaussiana é nula."""
 
 # ──────────────────────────────────────────────
 #  Ordem de classes

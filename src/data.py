@@ -219,7 +219,7 @@ def validate_raw_data(
     # ── 9. Categorias de marital são as três esperadas ──
     if "marital" in df.columns:
         actual_cats = set(df["marital"].unique())
-        if actual_cats != MARITAL_CATEGORIES:
+        if actual_cats != set(MARITAL_CATEGORIES):
             errors.append(
                 f"[V09] Categorias de 'marital' inesperadas.\n"
                 f"  Esperado: {sorted(MARITAL_CATEGORIES)}\n"
