@@ -8,8 +8,9 @@ Estudo dirigido organizado conforme a
 A ingestão, a validação e o split estratificado da RFC-0002 estão implementados.
 A [RFC-0003](rfcs/RFC-0003-modelagem-probabilistica.md) acrescenta os priors,
 as distribuições condicionais por classe e a comparação Gamma × Exponencial
-exclusivamente no treino. Classificadores univariados, Naive Bayes conjunto e
-avaliação final ficam para as RFCs consumidoras.
+exclusivamente no treino. As análises univariadas estão implementadas, assim
+como o classificador conjunto.
+A avaliação final permanece para a RFC consumidora correspondente.
 
 ## Execução
 
@@ -82,6 +83,57 @@ Os testes incluem cálculos manuais, conferência secundária com SciPy,
 estabilidade nas caudas, contratos inválidos e os valores aproximados da RFC
 no split congelado. Os valores de referência não são constantes dos ajustes.
 
+## Classificador misto da RFC-0005
+
+[`MixedNaiveBayes`](src/mixed_naive_bayes.py) combina a Normal de `age`, a Gamma
+de `duration` e a categórica de `marital`, reutilizando os ajustes da RFC-0003.
+As priors são as frequências empíricas do treino. A combinação e a decisão
+são próprias; SciPy fornece `logsumexp` para normalização, além do suporte
+numérico já descrito para as distribuições.
+
+```python
+from src.mixed_naive_bayes import MixedNaiveBayes
+
+model = MixedNaiveBayes().fit(split.X_train, split.y_train)
+scores = model.joint_log_likelihood(X)  # (n_samples, 2), classes [0, 1]
+log_posterior = model.predict_log_proba(X)
+posterior = model.predict_proba(X)     # linhas somando 1
+prediction = model.predict(X)         # (n_samples,), classes 0 ou 1
+parameters = model.get_fitted_parameters()
+```
+
+`X` deve ser um DataFrame com exatamente `age`, `duration` e `marital`;
+as colunas são reordenadas explicitamente. No ajuste, `y` deve ser uma Series
+com o mesmo índice e ordem de linhas, contendo as duas classes. Nulos,
+números não finitos, duração não positiva e categorias fora do domínio
+congelado geram erro. `alpha` e `variance_floor` devem ser finitos e positivos;
+os padrões são `1.0` e `1e-12`.
+
+O score soma a log-prior e as três log-verossimilhanças. A evidência é comum
+às classes e pode ser removida do `argmax`; para obter posteriores, a
+normalização usa `logsumexp`, após subtrair o maior score de cada linha.
+Em empate exato, a classe 0 vence. O ajuste é transacional: uma falha mantém
+o objeto novo não ajustado ou preserva integralmente um ajuste anterior.
+Predições reutilizam o estado aprendido e o modelo não armazena os dados.
+
+A hipótese de independência condicional é uma aproximação: `age` e `marital`
+permanecem relacionados dentro das classes. As posteriores refletem essa
+hipótese e as famílias de distribuição adotadas.
+
+Para reproduzir o ajuste e gerar a auditoria, execute na raiz:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.run_experiment
+```
+
+O comando valida a fonte, usa o split congelado e ajusta somente no treino.
+Gera [`model_parameters.json`](reports/metrics/model_parameters.json), com
+classes, contagens, priors, parâmetros contínuos, probabilidades categóricas,
+hiperparâmetros, ordem das features, SHA-256 do dataset e identificação do
+split. O arquivo fica disponível para versionamento. A reconstrução ocorre
+por `fit`; o JSON é uma cópia para inspeção e não uma entrada de treinamento.
+O runner desta etapa não calcula métricas da avaliação final.
+
 ## Parâmetros congelados
 
 | Parâmetro | Valor |
@@ -107,18 +159,22 @@ no split congelado. Os valores de referência não são constantes dos ajustes.
 ├── reports/
 │   ├── figures/
 │   └── metrics/
-├── rfcs/
-│   ├── RFC-0001-padroes-de-engenharia-e-governanca.md
-│   └── RFC-0003-modelagem-probabilistica.md
 ├── src/
 │   ├── __init__.py
 │   ├── config.py
 │   ├── data.py
-│   └── distributions.py
+│   ├── distributions.py
+│   ├── univariate.py
+│   ├── plotting.py
+│   ├── run_univariate.py
+│   ├── mixed_naive_bayes.py
+│   └── run_experiment.py
 ├── tests/
 │   ├── conftest.py
 │   ├── test_data.py
-│   └── test_distributions.py
+│   ├── test_distributions.py
+│   ├── test_univariate.py
+│   └── test_mixed_naive_bayes.py
 └── requirements.txt
 ```
 
@@ -127,11 +183,12 @@ no split congelado. Os valores de referência não são constantes dos ajustes.
 - `src/config.py`: parâmetros imutáveis e nomes de colunas.
 - `src/data.py`: leitura, validação, seleção e divisão dos dados.
 - `src/distributions.py`: ajuste de distribuições e log-densidades.
+- `src/mixed_naive_bayes.py`: ajuste e inferência do classificador conjunto.
+- `src/run_experiment.py`: orquestração do ajuste e exportação dos parâmetros.
 - `notebooks/`: explicação e inspeção; nunca a única implementação.
 
-Os módulos `univariate.py`, `mixed_naive_bayes.py`, `evaluation.py` e
-`run_experiment.py` fazem parte da estrutura planejada na RFC-0001 e ainda
-não estão implementados.
+O módulo `evaluation.py` permanece planejado na RFC-0001 para a etapa de
+avaliação final.
 
 ## Governança
 
