@@ -1,7 +1,7 @@
-"""Contrato, cálculo manual e isolamento do treino — RFC-0005."""
-
+import ast
 import json
 import math
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -211,6 +211,73 @@ def test_export_is_independent_and_json_serializable(fitted):
     assert np.exp(fitted.marital_log_prob_[0]["single"]) == pytest.approx(0.5)
 
 
+def test_identical_refit_produces_identical_parameters(training):
+    """Caso 11 da RFC-0006: dois ajustes com os mesmos dados geram parâmetros iguais."""
+    X, y = training
+    model1 = MixedNaiveBayes().fit(X, y)
+    model2 = MixedNaiveBayes().fit(X, y)
+    assert model1.get_fitted_parameters() == model2.get_fitted_parameters()
+
+
+def test_fit_and_predict_do_not_mutate_input_objects(training):
+    """Caso 12 da RFC-0006: input original não é mutado por fit ou predict."""
+    X, y = training
+    X_before = X.copy(deep=True)
+    y_before = y.copy(deep=True)
+
+    model = MixedNaiveBayes().fit(X, y)
+    pd.testing.assert_frame_equal(X, X_before)
+    pd.testing.assert_series_equal(y, y_before)
+
+    # Executa predições e confere imutabilidade
+    model.predict(X)
+    model.predict_proba(X)
+    model.predict_log_proba(X)
+    model.joint_log_likelihood(X)
+    pd.testing.assert_frame_equal(X, X_before)
+    pd.testing.assert_series_equal(y, y_before)
+
+
+def test_no_forbidden_sklearn_naive_bayes_imports():
+    """Caso 14 da RFC-0006: não há import de GaussianNB, CategoricalNB ou estimador equivalente."""
+    src_dir = Path(__file__).resolve().parent.parent / "src"
+    target_files = [
+        src_dir / "mixed_naive_bayes.py",
+        src_dir / "distributions.py",
+        src_dir / "univariate.py",
+    ]
+
+    forbidden_names = {
+        "GaussianNB",
+        "CategoricalNB",
+        "MultinomialNB",
+        "ComplementNB",
+        "BernoulliNB",
+    }
+
+    for file_path in target_files:
+        assert file_path.is_file(), f"Arquivo não encontrado: {file_path}"
+        code = file_path.read_text(encoding="utf-8")
+        tree = ast.parse(code, filename=str(file_path))
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    assert not alias.name.startswith("sklearn.naive_bayes"), (
+                        f"Import proibido encontrado em {file_path.name}: {alias.name}"
+                    )
+            elif isinstance(node, ast.ImportFrom):
+                if node.module and "naive_bayes" in node.module:
+                    pytest.fail(
+                        f"Import proibido 'from {node.module}' encontrado em {file_path.name}"
+                    )
+                for alias in node.names:
+                    assert alias.name not in forbidden_names, (
+                        f"Estimador proibido {alias.name} importado em {file_path.name}"
+                    )
+
+
+@pytest.mark.regression
 def test_frozen_split_invariants_and_scipy_reference(data_split):
     model = MixedNaiveBayes().fit(data_split.X_train, data_split.y_train)
     assert model.class_count_ == {0: 3199, 1: 417}
@@ -237,6 +304,7 @@ def test_frozen_split_invariants_and_scipy_reference(data_split):
     assert np.exp(list(model.class_log_prior_.values())).sum() == pytest.approx(1.)
 
 
+@pytest.mark.regression
 def test_runner_uses_only_training_and_exports_reproducibly(data_split, csv_path, tmp_path, monkeypatch):
     monkeypatch.setattr(run_experiment, "DATA_PATH", csv_path)
     output = tmp_path / "model_parameters.json"
