@@ -11,15 +11,17 @@ Responsabilidades
 Não deve
 --------
 - Alterar o modelo ou realizar previsões (responsabilidade de MixedNaiveBayes).
-- Usar scikit-learn internamente para cálculos principais (scikit-learn é apenas oráculo de teste).
+- Usar scikit-learn para cálculos principais (é somente oráculo de consistência).
 """
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+from typing import Any
 
 import numpy as np
 import pandas as pd
+
+from src.config import MARITAL_CATEGORIES
 
 
 def _to_binary_array(values: Any, name: str) -> np.ndarray:
@@ -192,3 +194,84 @@ def compute_majority_baseline(y_true: Any) -> float:
     """
     y_t = _to_binary_array(y_true, "y_true")
     return float(np.sum(y_t == 0) / len(y_t))
+
+
+def evaluate_predictions(y_true: Any, y_pred: Any) -> dict:
+    """Calcula manualmente e confere matriz/métricas com scikit-learn.
+
+    Aceita vetores binários, inclusive com uma única classe. Registra
+    explicitamente a ausência de previsões positivas antes da proteção zero.
+    """
+    from sklearn.metrics import (
+        accuracy_score, confusion_matrix, f1_score, precision_score, recall_score,
+    )
+
+    cm = compute_confusion_matrix(y_true, y_pred)
+    metrics = compute_metrics(y_true, y_pred, zero_division=0)
+    np.testing.assert_array_equal(cm, confusion_matrix(y_true, y_pred, labels=[0, 1]))
+    oracle = {
+        "accuracy": accuracy_score(y_true, y_pred),
+        "precision": precision_score(y_true, y_pred, pos_label=1, zero_division=0),
+        "recall": recall_score(y_true, y_pred, pos_label=1, zero_division=0),
+        "f1": f1_score(y_true, y_pred, pos_label=1, zero_division=0),
+    }
+    for name, value in metrics.items():
+        np.testing.assert_allclose(value, oracle[name], rtol=1e-12, atol=1e-12)
+    return {
+        "positive_class": 1,
+        "test_size": int(cm.sum()),
+        "confusion_matrix": extract_confusion_components(cm),
+        "metrics": metrics,
+        "no_positive_predictions": bool(cm[:, 1].sum() == 0),
+        "sklearn_consistency_verified": True,
+    }
+
+
+def build_error_groups(
+    X: pd.DataFrame, y_true: Any, y_pred: Any, *,
+    duration_boundary: float, long_duration_threshold: float,
+) -> pd.DataFrame:
+    """Resume VN/FP/FN/VP, preservando grupos vazios e empates na moda.
+
+    Fronteira MAP univariada e quantil de duração longa devem vir somente
+    do treino. São referências descritivas, nunca novos limiares de decisão.
+    Series devem ter o mesmo índice/ordem que X; arrays seguem a ordem de X.
+    Proporções usam o tamanho de cada grupo como denominador.
+    """
+    truth = _to_binary_array(y_true, "y_true")
+    prediction = _to_binary_array(y_pred, "y_pred")
+    if len(X) != len(truth) or len(truth) != len(prediction):
+        raise ValueError("Dimensões incompatíveis entre X, y_true e y_pred.")
+    for values in (y_true, y_pred):
+        if isinstance(values, pd.Series) and not values.index.equals(X.index):
+            raise ValueError("Índice e ordem dos rótulos devem coincidir com X.")
+    for threshold in (duration_boundary, long_duration_threshold):
+        if not np.isfinite(threshold) or threshold <= 0:
+            raise ValueError("Referências de duração devem ser positivas e finitas.")
+    rows = []
+    for name, real, predicted in (("VN", 0, 0), ("FP", 0, 1), ("FN", 1, 0), ("VP", 1, 1)):
+        group = X.loc[(truth == real) & (prediction == predicted)]
+        row = {"group": name, "n": len(group)}
+        for feature in ("age", "duration"):
+            for statistic in ("mean", "median"):
+                row[f"{feature}_{statistic}"] = getattr(group[feature], statistic)()
+        row["marital_mode"] = " | ".join(sorted(group["marital"].mode().astype(str)))
+        for category in MARITAL_CATEGORIES:
+            row[f"marital_{category}_n"] = int((group["marital"] == category).sum())
+        for label, mask in (
+            ("duration_below_boundary", group["duration"] < duration_boundary),
+            ("duration_above_train_q95", group["duration"] > long_duration_threshold),
+        ):
+            row[f"{label}_n"] = int(mask.sum())
+            row[f"{label}_fraction"] = float(mask.mean()) if len(group) else np.nan
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def summarize_age_by_marital(X_train: pd.DataFrame, y_train: pd.Series) -> pd.DataFrame:
+    """Evidência descritiva de associação age/marital dentro de cada classe."""
+    if not X_train.index.equals(y_train.index):
+        raise ValueError("Índice e ordem de y_train devem coincidir com X_train.")
+    frame = X_train.assign(actual_class=_to_binary_array(y_train, "y_train"))
+    return (frame.groupby(["actual_class", "marital"], observed=True)["age"]
+            .agg(n="size", age_mean="mean", age_median="median").reset_index())
