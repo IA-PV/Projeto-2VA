@@ -1,4 +1,4 @@
-"""Configuração imutável do projeto — RFC-0001 / RFC-0002 / RFC-0003.
+"""Configuração imutável do projeto — Governança, Contratos e Modelagem.
 
 Todas as constantes usadas pelo pipeline residem aqui.
 Nenhum módulo deve redefinir esses valores localmente.
@@ -6,6 +6,7 @@ Nenhum módulo deve redefinir esses valores localmente.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 # ──────────────────────────────────────────────
@@ -97,10 +98,10 @@ SPLIT_REPORT_PATH: Path = Path("reports/metrics/data_split.json")
 """Caminho para o artefato de auditoria do split."""
 
 MODEL_PARAMETERS_PATH: Path = Path("reports/metrics/model_parameters.json")
-"""Parâmetros do classificador misto e identificação do dataset/split (RFC-0005)."""
+"""Parâmetros do classificador misto e identificação do dataset/split."""
 
 # ──────────────────────────────────────────────
-#  RFC-0004: Experimentos Bayesianos Univariados
+#  Experimentos Bayesianos Univariados
 # ──────────────────────────────────────────────
 
 AGE_EXAMPLES: list[int] = [20, 40, 60, 80]
@@ -114,3 +115,71 @@ UNIVARIATE_FIGURES_DIR: Path = Path("reports/figures")
 
 UNIVARIATE_METRICS_DIR: Path = Path("reports/metrics")
 """Diretório de saída para métricas/tabelas da análise univariada."""
+
+# ──────────────────────────────────────────────
+#  Reprodutibilidade e Configuração
+# ──────────────────────────────────────────────
+
+DISTRIBUTIONS: dict[str, str] = {
+    "age": "gaussian",
+    "duration": "gamma",
+    "marital": "categorical_laplace",
+}
+"""Mapeamento canônico das famílias de distribuição por atributo."""
+
+RUN_MANIFEST_PATH: Path = Path("reports/metrics/run_manifest.json")
+"""Caminho padrão para o manifesto formal de execução."""
+
+
+@dataclass(frozen=True)
+class ExperimentConfig:
+    """Configuração imutável do estudo científico.
+
+    Centraliza todos os parâmetros do pipeline de dados, modelagem,
+    avaliação e caminhos de entrada e saída.
+    """
+
+    data_path: Path = Path("data/raw/bank.csv")
+    output_dir: Path = Path("reports")
+    feature_columns: tuple[str, ...] = ("age", "duration", "marital")
+    target_column: str = "y"
+    test_size: float = 0.20
+    random_state: int = 42
+    laplace_alpha: float = 1.0
+    class_order: tuple[int, int] = (0, 1)
+
+    @property
+    def metrics_dir(self) -> Path:
+        """Diretório de métricas e relatórios JSON/CSV."""
+        return self.output_dir / "metrics"
+
+    @property
+    def figures_dir(self) -> Path:
+        """Diretório de figuras e gráficos PNG."""
+        return self.output_dir / "figures"
+
+    @property
+    def split_report_path(self) -> Path:
+        """Caminho do artefato de auditoria da divisão de dados."""
+        return self.metrics_dir / "data_split.json"
+
+    @property
+    def model_parameters_path(self) -> Path:
+        """Caminho dos parâmetros ajustados do modelo misto."""
+        return self.metrics_dir / "model_parameters.json"
+
+    @property
+    def run_manifest_path(self) -> Path:
+        """Caminho do manifesto formal de execução."""
+        return self.metrics_dir / "run_manifest.json"
+
+    @property
+    def distribution_parameters_path(self) -> Path:
+        """Caminho dos parâmetros univariados estimados."""
+        return self.metrics_dir / "distribution_parameters.json"
+
+    @property
+    def final_metrics_path(self) -> Path:
+        """Caminho do resultado da avaliação oficial no conjunto de teste."""
+        return self.metrics_dir / "final_metrics.json"
+
