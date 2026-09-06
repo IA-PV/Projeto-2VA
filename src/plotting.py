@@ -29,6 +29,28 @@ from src.distributions import (  # noqa: E402
     gaussian_logpdf,
 )
 
+
+def plot_confusion_matrix(cm: np.ndarray, path: Path) -> None:
+    """Salva a matriz do teste: linhas reais, colunas preditas, contagens."""
+    from src.evaluation import extract_confusion_components
+
+    extract_confusion_components(cm)
+    labels = ["0 - não aderiu", "1 - aderiu"]
+    fig, ax = plt.subplots(figsize=(6, 5), layout="constrained")
+    ax.imshow(cm, cmap="Blues", vmin=0, vmax=max(1, int(cm.max())))
+    ax.set(xticks=[0, 1], yticks=[0, 1], xticklabels=labels, yticklabels=labels,
+           xlabel="Classe predita", ylabel="Classe real",
+           title="Matriz de confusão — conjunto de teste")
+    ax.grid(False)
+    for (row, column), count in np.ndenumerate(cm):
+        # Caixa branca mantém até células pequenas legíveis em qualquer cor.
+        ax.text(column, row, str(int(count)), ha="center", va="center", color="black",
+                fontsize=16, bbox={"facecolor": "white", "edgecolor": "none", "pad": 4})
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, dpi=160)
+    plt.close(fig)
+
 # ──────────────────────────────────────────────
 #  Estilo global
 # ──────────────────────────────────────────────
