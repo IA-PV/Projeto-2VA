@@ -1,209 +1,266 @@
-# Projeto de IA — Classificação Bayesiana
+# Projeto de IA: Classificação Bayesiana Pura e Mista
 
-Estudo dirigido organizado conforme a
-[`RFC-0001`](rfcs/RFC-0001-padroes-de-engenharia-e-governanca.md).
+Implementação rigorosa e reproduzível de um classificador probabilístico supervisionado baseado em **Inferência Bayesiana Pura** (sem estimadores caixa-preta de terceiros) sobre o dataset bancário [UCI Bank Marketing](https://archive.ics.uci.edu/dataset/222/bank+marketing), em conformidade com as diretrizes da disciplina e governado por especificações técnicas de engenharia e governança de software.
 
-## Estado atual
+---
 
-A ingestão, a validação e o split estratificado da RFC-0002 estão implementados.
-A [RFC-0003](rfcs/RFC-0003-modelagem-probabilistica.md) acrescenta os priors,
-as distribuições condicionais por classe e a comparação Gamma × Exponencial
-exclusivamente no treino. As análises univariadas estão implementadas, assim
-como o classificador conjunto.
-A avaliação final permanece para a RFC consumidora correspondente.
+## 1. Título e Objetivo
 
-## Execução
+- **Título**: Estudo Dirigido de Inferência e Classificação Bayesiana Supervisionada.
+- **Objetivo**: Estimar probabilidades a priori e verossimilhanças condicionais a partir de dados reais, comparar formulações teóricas (Normal, Gamma e Categórica com Laplace), analisar o comportamento probabilístico univariado (razão de verossimilhanças $\Lambda(x)$, fronteiras de decisão e posteriors normalizadas) e combinar as evidências em um classificador ingênuo misto (*Mixed Naive Bayes*), auditando seu desempenho contra o holdout congelado e confrontando-o com o baseline majoritário.
 
-Na raiz do repositório, com Python 3.10 ou superior:
+---
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m pytest -q
-```
+## 2. Integrantes
 
-Para inspecionar as tabelas no notebook, instale o kernel no mesmo ambiente:
+- **Vitor Antônio Silvestre Santos**
+- **Pedro Tobias Souza Guerra**
 
-```powershell
-.\.venv\Scripts\python.exe -m pip install ipykernel
-```
+---
 
-Abra [02_analises_univariadas.ipynb](notebooks/02_analises_univariadas.ipynb)
-em um editor compatível com Jupyter, selecione o Python de `.venv` e execute
-todas as células em ordem. O kernel pode iniciar na raiz ou em `notebooks/`.
-O notebook gera tabelas de priors, parâmetros numéricos, contagens e
-probabilidades categóricas, além de log-likelihood, AIC e KS para duração.
+## 3. Origem e Versão do Dataset
 
-## Modelagem da RFC-0003
+- **Dataset**: Amostra reduzida oficial contendo **4.521 observações** e 17 atributos do conjunto [Bank Marketing da UCI](https://archive.ics.uci.edu/dataset/222/bank+marketing) (`bank.csv`).
+- **Arquivo local**: [`data/raw/bank.csv`](data/raw/bank.csv).
+- **Integridade Criptográfica (SHA-256 com LF normalizado)**:
+  `dc8d576e9bda0f41ee891251bd84bab9a39ce576cba715aac08adc2374a01fde`
+- **Substituição**: A fonte de dados é congelada. Qualquer alteração ou substituição exige atualização e revisão formal do contrato de dados.
 
-| Componente | Estimativa no treino de cada classe |
-|---|---|
-| Prior | `N_c / N`, sem suavização ou balanceamento |
-| `age` | Normal: média e variância MLE com `ddof=0` |
-| `duration` | Gamma: forma e escala MLE, localização fixa em zero |
-| `marital` | Categórica: `(N_c,k + 1) / (N_c + 3)` |
-| Comparação de `duration` | Exponencial: taxa `1 / média`, localização zero |
+---
 
-As funções de ajuste e avaliação estão separadas em
-[`src/distributions.py`](src/distributions.py). `GaussianParams`, `GammaParams`
-e `ExponentialParams` são dataclasses imutáveis. `fit_class_priors` recebe
-somente `y_train`; os ajustes de atributos recebem os valores de treino da
-classe correspondente. As log-densidades aceitam vetores NumPy; a função
-`categorical_logpmf` calcula log-probabilidades e rejeita categorias desconhecidas.
+## 4. Problema de Classificação
 
-**Fronteira com SciPy:** `scipy.stats.gamma.fit(values, floc=0)` resolve
-numericamente o MLE Gamma. A localização deve ser exatamente zero, forma e
-escala devem ser positivas e finitas, e `shape * scale` deve reproduzir a
-média empírica. As log-densidades Normal, Gamma e Exponencial são implementadas
-explicitamente; a Gamma usa `scipy.special.gammaln`, sem calcular `gamma(k)`
-ou `log(pdf(x))`. SciPy também fornece as CDFs e o KS para diagnóstico e serve
-de referência secundária nos testes. A combinação de evidências e a decisão
-do classificador serão implementadas na própria base pelas RFCs consumidoras.
+O problema consiste em prever se um cliente bancário subscreverá um depósito a prazo fixo (*term deposit*) após uma abordagem telefônica de marketing direto.
+O desafio central reside no **desbalanceamento severo das classes**:
+- Na base total de 4.521 amostras, **88,48%** (4.000) pertencem à classe negativa (`no`) e apenas **11,52%** (521) à classe positiva (`yes`).
+- Na presença de fortes desbalanceamentos, a acurácia isolada é enganosa (um classificador ingênuo que preveja sempre `no` atinge ~88,5% de acurácia com recall zero). A modelagem bayesiana lida explicitamente com as probabilidades a priori e as razões de verossimilhança.
 
-O AIC é calculado por `2*q - 2*sum(log_densidades)`: Normal e Gamma têm `q=2`,
-Exponencial tem `q=1`. Só é comparado no mesmo atributo, classe e amostra de
-treino. O KS com parâmetros estimados é um diagnóstico relativo, sem usar
-p-valores como prova isolada de aderência. A Exponencial permanece comparativa;
-a distribuição principal de duração é a Gamma.
+---
 
-Entradas inválidas ou resultados não finitos geram erros explícitos. Gamma
-exige valores estritamente positivos e uma amostra não constante para MLE
-finito. A variância Gaussiana só recebe `variance_floor=1e-12` quando a
-estimativa é zero na precisão numérica; variâncias positivas são preservadas.
-O domínio categórico é `("divorced", "married", "single")`, sem `<UNK>`.
-As somas de probabilidades são verificadas com tolerância numérica.
+## 5. Alvo e Classes
 
-A Normal aproxima uma idade discreta, limitada e possivelmente multimodal.
-Densidade contínua não é probabilidade pontual; prior e probabilidade
-categórica também se distinguem da posterior normalizada. O produto da prior
-pelas verossimilhanças serve à decisão, mas precisa de normalização para
-representar uma posterior.
+A variável-alvo $y$ é mapeada de maneira estrita e determinística:
+- `no` $\rightarrow \mathbf{0}$ (classe negativa: o cliente não subscreveu o produto).
+- `yes` $\rightarrow \mathbf{1}$ (classe positiva: o cliente subscreveu o produto).
+- A ordem canônica dos rótulos em todas as matrizes e métricas é $\mathbf{[0, 1]}$.
 
-Os testes incluem cálculos manuais, conferência secundária com SciPy,
-estabilidade nas caudas, contratos inválidos e os valores aproximados da RFC
-no split congelado. Os valores de referência não são constantes dos ajustes.
+---
 
-## Classificador misto da RFC-0005
+## 6. Três Atributos Selecionados
 
-[`MixedNaiveBayes`](src/mixed_naive_bayes.py) combina a Normal de `age`, a Gamma
-de `duration` e a categórica de `marital`, reutilizando os ajustes da RFC-0003.
-As priors são as frequências empíricas do treino. A combinação e a decisão
-são próprias; SciPy fornece `logsumexp` para normalização, além do suporte
-numérico já descrito para as distribuições.
+Conforme definido no contrato de dados e na especificação do projeto, foram selecionados exatamente três atributos de tipos distintos:
+1. **`age`** (numérico contínuo/inteiro): Idade do cliente (faixa observada: 18 a 95 anos).
+2. **`duration`** (numérico contínuo positivo): Duração do último contato telefônico em segundos (faixa observada: 0 a 4.918 segundos).
+3. **`marital`** (categórico politômico): Estado civil do cliente com domínio estrito $\mathcal{D} = \{\text{divorced}, \text{married}, \text{single}\}$.
 
-```python
-from src.mixed_naive_bayes import MixedNaiveBayes
+---
 
-model = MixedNaiveBayes().fit(split.X_train, split.y_train)
-scores = model.joint_log_likelihood(X)  # (n_samples, 2), classes [0, 1]
-log_posterior = model.predict_log_proba(X)
-posterior = model.predict_proba(X)     # linhas somando 1
-prediction = model.predict(X)         # (n_samples,), classes 0 ou 1
-parameters = model.get_fitted_parameters()
-```
+## 7. Resumo das Distribuições e Modelagem
 
-`X` deve ser um DataFrame com exatamente `age`, `duration` e `marital`;
-as colunas são reordenadas explicitamente. No ajuste, `y` deve ser uma Series
-com o mesmo índice e ordem de linhas, contendo as duas classes. Nulos,
-números não finitos, duração não positiva e categorias fora do domínio
-congelado geram erro. `alpha` e `variance_floor` devem ser finitos e positivos;
-os padrões são `1.0` e `1e-12`.
+Toda a estimação de parâmetros é realizada **estritamente sobre as 3.616 observações de treinamento** (livre de vazamento de dados / data leakage):
 
-O score soma a log-prior e as três log-verossimilhanças. A evidência é comum
-às classes e pode ser removida do `argmax`; para obter posteriores, a
-normalização usa `logsumexp`, após subtrair o maior score de cada linha.
-Em empate exato, a classe 0 vence. O ajuste é transacional: uma falha mantém
-o objeto novo não ajustado ou preserva integralmente um ajuste anterior.
-Predições reutilizam o estado aprendido e o modelo não armazena os dados.
+| Componente | Família Probabilística | Método de Estimação no Treino |
+|---|---|---|
+| **Prior** $P(Y=c)$ | Empírica | Frequência relativa: $N_c / N_{\text{train}}$ ($P(0) \approx 0{,}8847$, $P(1) \approx 0{,}1153$) |
+| **`age`** | Normal (Gaussiana) | $\hat{\mu}_c$ e $\hat{\sigma}_c^2$ via MLE com $N_c$ no denominador (`ddof=0`) |
+| **`duration`** | Gamma | Forma $\hat{k}_c$ e escala $\hat{\theta}_c$ via MLE com localização fixa em zero (`floc=0`) |
+| **`marital`** | Categórica | Frequência com suavização de Laplace: $\frac{N_{c,k} + \alpha}{N_c + \alpha K}$ com $\alpha=1$ e $K=3$ |
+| *Diagnóstico* | Exponencial | Taxa $\hat{\lambda}_c = 1/\bar{x}_c$; superada pela Gamma no critério AIC |
 
-A hipótese de independência condicional é uma aproximação: `age` e `marital`
-permanecem relacionados dentro das classes. As posteriores refletem essa
-hipótese e as famílias de distribuição adotadas.
+- **Razão de Verossimilhança Univariada**: $\Lambda(x) = \frac{p(x \mid Y=1)}{p(x \mid Y=0)}$.
+- **Regra de Decisão MAP**: Decide classe 1 se $\Lambda(x) > \frac{P(Y=0)}{P(Y=1)} \approx 7{,}6715$.
+- **Combinação Multivariada**: O modelo misto assume independência condicional ingênua e soma as evidências em escala logarítmica natural:
+  $$\ln P(Y=c \mid \mathbf{x}) \propto \ln P(Y=c) + \ln p(\text{age} \mid c) + \ln p(\text{duration} \mid c) + \ln P(\text{marital} \mid c)$$
+  As probabilidades posteriores normalizadas são obtidas numericamente via `logsumexp`.
 
-Para reproduzir o ajuste e gerar a auditoria, execute na raiz:
+---
 
-```powershell
-.\.venv\Scripts\python.exe -m src.run_experiment
-```
-
-O comando valida a fonte, usa o split congelado e ajusta somente no treino.
-Gera [`model_parameters.json`](reports/metrics/model_parameters.json), com
-classes, contagens, priors, parâmetros contínuos, probabilidades categóricas,
-hiperparâmetros, ordem das features, SHA-256 do dataset e identificação do
-split. O arquivo fica disponível para versionamento. A reconstrução ocorre
-por `fit`; o JSON é uma cópia para inspeção e não uma entrada de treinamento.
-O runner desta etapa não calcula métricas da avaliação final.
-
-## Parâmetros congelados
-
-| Parâmetro | Valor |
-|---|---|
-| Dataset | `data/raw/bank.csv` |
-| Target | `y` |
-| Classes | `no -> 0`, `yes -> 1` |
-| Features | `age`, `duration`, `marital` |
-| Teste | `20%` |
-| Semente | `42` |
-| Estratificação | `y` |
-| Laplace | `alpha = 1.0` |
-| Ordem das classes | `[0, 1]` |
-| Logaritmo | natural |
-
-## Estrutura
+## 8. Estrutura do Repositório
 
 ```text
 .
-├── data/raw/bank.csv
+├── data/
+│   └── raw/
+│       └── bank.csv             # Amostra reduzida congelada (UCI)
 ├── notebooks/
-│   └── 02_analises_univariadas.ipynb
+│   └── 02_analises_univariadas.ipynb # Inspeção e visualização univariada
 ├── reports/
-│   ├── figures/
-│   └── metrics/
-├── src/
+│   ├── figures/                 # Gráficos e curvas gerados programaticamente
+│   │   ├── age_conditional_and_decision.png
+│   │   ├── duration_conditional_and_decision.png
+│   │   ├── marital_conditional_probabilities.png
+│   │   └── confusion_matrix.png
+│   └── metrics/                 # Relatórios JSON/CSV auditáveis versionados
+│       ├── data_split.json
+│       ├── distribution_parameters.json
+│       ├── model_parameters.json
+│       ├── final_metrics.json
+│       ├── run_manifest.json
+│       ├── confusion_matrix.csv
+│       ├── error_groups.csv
+│       ├── age_univariate_examples.csv
+│       ├── duration_univariate_examples.csv
+│       └── marital_univariate_examples.csv
+├── src/                         # Implementação da biblioteca científica
 │   ├── __init__.py
-│   ├── config.py
-│   ├── data.py
-│   ├── distributions.py
-│   ├── univariate.py
-│   ├── plotting.py
-│   ├── run_univariate.py
-│   ├── mixed_naive_bayes.py
-│   └── run_experiment.py
-├── tests/
+│   ├── config.py                # Configuração centralizada e ExperimentConfig imutável
+│   ├── data.py                  # Ingestão, validação de contrato e split estratificado
+│   ├── distributions.py         # Ajuste de distribuições contínuas e categóricas
+│   ├── univariate.py            # Cálculo de posteriors, odds ratio e fronteiras
+│   ├── mixed_naive_bayes.py     # Classificador Bayesiano Misto próprio
+│   ├── evaluation.py            # Métricas manuais, matriz de confusão e baseline
+│   ├── plotting.py              # Visualizações padronizadas
+│   ├── run_univariate.py        # Runner da análise univariada
+│   ├── run_evaluation.py        # Runner auditado da avaliação no holdout
+│   └── run_experiment.py        # Orquestrador oficial do estudo completo
+├── tests/                       # Suíte automatizada de testes e validação matemática
 │   ├── conftest.py
 │   ├── test_data.py
+│   ├── test_data_leakage.py
 │   ├── test_distributions.py
 │   ├── test_univariate.py
-│   └── test_mixed_naive_bayes.py
-└── requirements.txt
+│   ├── test_mixed_naive_bayes.py
+│   ├── test_evaluation.py
+│   ├── test_final_evaluation.py
+│   └── test_reproducibility.py  # Testes de reprodutibilidade e conformidade
+├── pytest.ini                   # Configuração de execução do pytest
+├── requirements.txt             # Dependências diretas com versões exatas testadas
+└── README.md                    # Documentação oficial de entrega
 ```
 
-## Responsabilidades
+---
 
-- `src/config.py`: parâmetros imutáveis e nomes de colunas.
-- `src/data.py`: leitura, validação, seleção e divisão dos dados.
-- `src/distributions.py`: ajuste de distribuições e log-densidades.
-- `src/mixed_naive_bayes.py`: ajuste e inferência do classificador conjunto.
-- `src/run_experiment.py`: orquestração do ajuste e exportação dos parâmetros.
-- `notebooks/`: explicação e inspeção; nunca a única implementação.
+## 9. Pré-requisitos de Ambiente
 
-O módulo `evaluation.py` permanece planejado na RFC-0001 para a etapa de
-avaliação final.
+- **Linguagem**: Python $\ge$ 3.10 (validado e testado no **Python 3.13.7**).
+- **Sistema Operacional**: Windows, Linux ou macOS.
+- **Gerenciador de Ambientes**: Módulo padrão `venv` do Python.
 
-## Governança
+---
 
-Cada mudança deve partir de uma RFC aplicável, ser feita em branch curta,
-incluir testes proporcionais ao comportamento implementado e passar por revisão
-cruzada. Mudanças nos parâmetros congelados ou nas fórmulas exigem atualização
-de RFC.
+## 10. Instalação
 
-O conjunto de teste não pode participar do ajuste de parâmetros, escolha de
-distribuição ou tuning. O projeto não deve incluir preditores além dos três
-definidos, técnicas de reamostragem, classificadores prontos como implementação
-principal nem infraestrutura fora do escopo acadêmico.
+Abra o terminal na raiz do repositório:
 
-## Dados
+### No Windows (PowerShell):
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+```
 
-`bank.csv` é a amostra reduzida de 4.521 observações do conjunto
-[Bank Marketing da UCI](https://archive.ics.uci.edu/dataset/222/bank+marketing),
-distribuído sob licença CC BY 4.0.
+### No Linux / macOS (Bash):
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+---
+
+## 11. Comandos de Validação, Teste e Execução
+
+### 11.1 Validação de Dados e Ambiente (Somente Leitura)
+Executa todas as checagens formais de contrato, esquema, hash e split sem criar ou modificar nenhum arquivo em disco:
+```bash
+python -m src.run_experiment --validate-only
+```
+
+### 11.2 Execução do Estudo Completo de Ponta a Ponta
+Regenera todos os parâmetros, tabelas CSV, figuras PNG, métricas e o manifesto de execução:
+```bash
+python -m src.run_experiment
+```
+
+### 11.3 Execução da Suíte de Testes Automatizada
+Executa os 244 testes unitários, matemáticos e de integração:
+```bash
+pytest -q
+```
+
+### 11.4 Inspeção Interativa dos Notebooks
+Para inspecionar as tabelas formatadas e diagnósticos interativamente:
+```bash
+python -m pip install ipykernel
+```
+Abra [`notebooks/02_analises_univariadas.ipynb`](notebooks/02_analises_univariadas.ipynb) no Jupyter Lab ou VS Code, selecione o kernel `.venv` e execute todas as células em ordem (`Run All`).
+
+---
+
+## 12. Descrição das Saídas e Métricas Auditadas
+
+A execução do estudo consolida artefatos em `reports/`:
+
+### 12.1 Manifesto de Execução ([`run_manifest.json`](reports/metrics/run_manifest.json))
+Registra metadados de execução, plataforma, hash dos dados, hiperparâmetros e famílias de distribuição de acordo com a especificação de reprodutibilidade do projeto.
+
+### 12.2 Métricas Finais Auditadas no Holdout ([`final_metrics.json`](reports/metrics/final_metrics.json))
+Resultados obtidos sobre as 905 observações congeladas de teste:
+
+| Métrica | Classificador Misto Bayesiano | Baseline Majoritário (sempre classe 0) |
+|---|---|---|
+| **Acurácia** | **$88{,}73\%$** ($0{,}8873$) | $88{,}51\%$ ($0{,}8851$) |
+| **Precisão** | **$51{,}92\%$** ($0{,}5192$) | $0{,}00\%$ ($0{,}0000$) |
+| **Recall (Sensibilidade)** | **$25{,}96\%$** ($0{,}2596$) | $0{,}00\%$ ($0{,}0000$) |
+| **F1-Score** | **$34{,}62\%$** ($0{,}3462$) | $0{,}00\%$ ($0{,}0000$) |
+
+### 12.3 Matriz de Confusão Oficial ([`confusion_matrix.csv`](reports/metrics/confusion_matrix.csv))
+Ordem canônica $[0, 1]$ (linhas: real, colunas: predito):
+- **Verdadeiros Negativos (VN)**: $776$ (cliente não aderiu e o modelo previu não adesão)
+- **Falsos Positivos (FP)**: $25$ (cliente não aderiu, mas o modelo previu adesão)
+- **Falsos Negativos (FN)**: $77$ (cliente aderiu, mas o modelo previu não adesão)
+- **Verdadeiros Positivos (VP)**: $27$ (cliente aderiu e o modelo previu adesão)
+- **Total**: $776 + 25 + 77 + 27 = 905$ observações.
+
+---
+
+## 13. Decisões de Reprodutibilidade
+
+- **Semente e Divisão**: Semente fixa `random_state = 42`, divisão estratificada `test_size = 0.20` garantindo proporções idênticas em treino e teste.
+- **Isolamento Total do Holdout**: O conjunto de teste nunca participa da estimativa de parâmetros, seleção de hiperparâmetros ou calibração de priors.
+- **Portão de Congelamento**: A avaliação no holdout é protegida por trava auditável em `reports/metrics/freeze_checklist.json` e `evaluation_history.json`.
+- **Portabilidade de Caminhos**: Uso exclusivo de `pathlib.Path` e caminhos relativos ao projeto, sem caminhos absolutos locais de máquina.
+- **Normalização de Final de Linha**: SHA-256 computado com normalização de `\r\n` para `\n`, eliminando divergências entre sistemas operacionais.
+
+---
+
+## 14. Limitações Principais
+
+1. **Hipótese Ingênua de Independência Condicional**: Assume que idade, duração e estado civil são independentes dadas as classes, embora atributos como idade e estado civil apresentem correlações empíricas evidentes.
+2. **Variável `duration` Pós-Contato (Viés de Seleção)**: A duração da chamada só é conhecida após o encerramento do contato. Portanto, em um cenário de triagem bancária a priori (antes de discar para o cliente), essa variável não está disponível.
+3. **Desbalanceamento Severo**: A probabilidade a priori da classe negativa ($~88,5\%$) impõe um limiar elevado ($\Lambda > 7{,}67$), fazendo com que o classificador seja conservador na atribuição da classe positiva.
+
+---
+
+## 15. Uso de Ferramentas de IA Generativa e Processo de Verificação
+
+Em consonância com as práticas éticas e acadêmicas de integridade científica:
+- **Áreas com Apoio de IA**: Auxílio no planejamento estrutural da documentação e sugestões de arquitetura de testes unitários.
+- **Implementação e Auditoria Humana**: Toda a matemática, deduções analíticas de máxima verossimilhança (MLE), parametrizações de log-densidades e cálculos de matriz de confusão foram conferidos, implementados e auditados pelos integrantes.
+- **Validação Cruzada por Oráculos**: Todas as implementações manuais foram estritamente validadas contra oráculos secundários independentes (`scipy.stats` para distribuições e `sklearn.metrics` para matriz de confusão e métricas).
+- **Responsabilidade**: A IA atuou como ferramenta de produtividade e pair programming; a responsabilidade técnica e científica final pertence integralmente aos autores.
+
+---
+
+## 16. Especificações Técnicas e Módulos do Projeto
+
+As decisões de arquitetura e governança do projeto foram organizadas em módulos com responsabilidades bem delimitadas:
+
+| Módulo / Especificação | Escopo e Responsabilidade |
+|---|---|
+| **01. Engenharia e Governança** | Padrões de engenharia de software, tipagem estrita, estrutura de diretórios e governança do repositório |
+| **02. Contrato de Dados e Divisão** | Ingestão, validação de integridade criptográfica (SHA-256), esquema e split estratificado congelado |
+| **03. Modelagem Probabilística** | Modelagem probabilística teórica (Normal, Gamma, Laplace e priors empíricas de treino) |
+| **04. Análises Univariadas** | Experimentos Bayesianos univariados, cálculo da razão $\Lambda(x)$, fronteiras analíticas e posteriors |
+| **05. Classificador Misto** | Implementação do Classificador Naive Bayes Misto supervisionado conjunto |
+| **06. Estratégia de Testes** | Estratégia de testes automatizados e validação matemática de fórmulas contra oráculos |
+| **07. Avaliação e Erros** | Protocolo de avaliação oficial no holdout, cálculo manual de métricas e análise de erros |
+| **08. Reprodutibilidade** | Orquestrador completo, configuração imutável, dependências fixadas e manifesto de execução |
+
+---
+
+## 17. Licença e Citação da Base de Dados
+
+O dataset original está sob licença **Creative Commons Attribution 4.0 International (CC BY 4.0)**.
+Citação formal:
+> **Moro, S., Cortez, P., & Rita, P. (2014).** *A Data-Driven Approach to Predict the Success of Bank Telemarketing.* Decision Support Systems, Elsevier, 62:22-31.
