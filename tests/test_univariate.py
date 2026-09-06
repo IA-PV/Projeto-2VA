@@ -63,6 +63,65 @@ class TestComputeLogScores:
 
 
 class TestComputePosteriors:
+    def test_rfc0006_conceptual_prior_dominance_example(self):
+        """Exemplo conceitual central da RFC-0006.
+
+        P(0)=0.8, P(1)=0.2
+        p(x|0)=0.1, p(x|1)=0.3
+        Lambda = 3.
+        P(1|x) = (0.3*0.2) / (0.1*0.8 + 0.3*0.2) = 3/7 ≈ 0.428571.
+        P(0|x) = (0.1*0.8) / (0.1*0.8 + 0.3*0.2) = 4/7 ≈ 0.571429.
+
+        Embora Lambda > 1, a decisão é classe 0. Protege a distinção conceitual central.
+        """
+        priors = {0: 0.8, 1: 0.2}
+        log_pdf_0 = np.array([log(0.1)])
+        log_pdf_1 = np.array([log(0.3)])
+
+        # 1. Likelihood ratio Lambda = 3
+        lambda_val = np.exp(log_pdf_1[0] - log_pdf_0[0])
+        assert lambda_val == pytest.approx(3.0, rel=1e-12)
+
+        # 2. Posteriores
+        s0 = log(priors[0]) + log_pdf_0
+        s1 = log(priors[1]) + log_pdf_1
+        p0, p1 = compute_posteriors(s0, s1)
+
+        assert p1[0] == pytest.approx(3 / 7, rel=1e-10, abs=1e-12)
+        assert p0[0] == pytest.approx(4 / 7, rel=1e-10, abs=1e-12)
+        assert p0[0] + p1[0] == pytest.approx(1.0, abs=1e-12)
+
+        # 3. Decisão: classe 0 (prior domina)
+        decision = map_decision(s0, s1)
+        assert decision[0] == 0
+
+        # 4. Análise univariada completa
+        res = analyze_univariate("x", np.array([1.0]), priors, log_pdf_0, log_pdf_1)
+        assert res.likelihood_ratio[0] == pytest.approx(3.0, rel=1e-12)
+        assert res.posterior_class_1[0] == pytest.approx(3 / 7, rel=1e-10, abs=1e-12)
+        assert res.predictions[0] == 0
+
+    def test_linear_and_logarithmic_implementations_coincide(self):
+        """Implementação linear manual e logarítmica coincidem com alta precisão."""
+        # Valores arbitrários em escala moderada
+        p0_val, p1_val = 0.65, 0.35
+        lik0_val, lik1_val = 0.04, 0.09
+
+        # Cálculo linear manual
+        num0 = p0_val * lik0_val
+        num1 = p1_val * lik1_val
+        denom = num0 + num1
+        linear_post0 = num0 / denom
+        linear_post1 = num1 / denom
+
+        # Cálculo logarítmico via compute_posteriors
+        s0 = np.array([log(p0_val) + log(lik0_val)])
+        s1 = np.array([log(p1_val) + log(lik1_val)])
+        log_post0, log_post1 = compute_posteriors(s0, s1)
+
+        np.testing.assert_allclose(log_post0, [linear_post0], atol=1e-12)
+        np.testing.assert_allclose(log_post1, [linear_post1], atol=1e-12)
+
     def test_manual_posterior(self):
         """P(Y=0|x) e P(Y=1|x) calculados manualmente."""
         # P(Y=0)=0.75, P(Y=1)=0.25
@@ -183,6 +242,40 @@ class TestFindContinuousBoundaries:
         boundaries = find_continuous_boundaries(lambda x: 1.0, 0, 10)
         assert len(boundaries) == 0
 
+    def test_boundaries_make_scores_approximately_equal(self):
+        """As fronteiras retornadas realmente tornam os scores aproximadamente iguais."""
+        # Função score_diff = s1(x) - s0(x)
+        def score_diff(x):
+            return 2.0 * x - 8.0  # raiz em x=4.0
+
+        boundaries = find_continuous_boundaries(score_diff, 0.0, 10.0)
+        assert len(boundaries) == 1
+        root = boundaries[0]
+        # Tolerância coerente com o solver: |score_diff(root)| < 1e-6
+        assert abs(score_diff(root)) < 1e-6
+
+    def test_intervals_between_boundaries_receive_defined_decision(self):
+        """Todos os intervalos entre fronteiras recebem regra definida."""
+        # Duas fronteiras em x=2 e x=8 dividem o domínio em (-inf, 2), (2, 8), (8, inf)
+        def diff(x):
+            return -(x - 2.0) * (x - 8.0)  # >0 para x in (2, 8), <0 fora
+
+        boundaries = find_continuous_boundaries(diff, 0.0, 10.0)
+        assert len(boundaries) == 2
+        b1, b2 = boundaries
+
+        # Testa pontos no interior de cada um dos 3 intervalos
+        test_points = [
+            (b1 - 1.0, 0),  # x=1.0: diff < 0 -> classe 0
+            ((b1 + b2) / 2.0, 1),  # x=5.0: diff > 0 -> classe 1
+            (b2 + 1.0, 0),  # x=9.0: diff < 0 -> classe 0
+        ]
+        for pt, expected_class in test_points:
+            s1 = diff(pt)
+            s0 = 0.0
+            dec = map_decision(np.array([s0]), np.array([s1]))
+            assert dec[0] == expected_class
+
     def test_rejects_invalid_domain(self):
         with pytest.raises(ValueError, match="lower"):
             find_continuous_boundaries(lambda x: x, 10, 5)
@@ -226,6 +319,7 @@ class TestBuildCategoricalRule:
 # ──────────────────────────────────────────────
 
 
+@pytest.mark.regression
 class TestSmokeValuesAge:
     """Smoke values esperados da RFC: likelihood ≈26.95 e ≈50.44, MAP ≈72.64."""
 
@@ -271,6 +365,7 @@ class TestSmokeValuesAge:
         assert np.all(np.isfinite(result.likelihood_ratio))
 
 
+@pytest.mark.regression
 class TestSmokeValuesDuration:
     """Smoke values: Λ=1 ≈315s, MAP ≈808s."""
 
@@ -317,6 +412,7 @@ class TestSmokeValuesDuration:
         assert result.predictions[3] == 1, "duration=1000 deve ser classe 1"
 
 
+@pytest.mark.regression
 class TestSmokeValuesMarital:
     """Nenhuma categoria vence a prior → tudo classe 0."""
 
@@ -419,6 +515,7 @@ class TestAlgebraicProperties:
 # ──────────────────────────────────────────────
 
 
+@pytest.mark.regression
 class TestIntegration:
     """Testa que a pipeline completa roda sem erros nos dados reais."""
 
