@@ -216,6 +216,7 @@ Qualitativamente, `duration` possui o maior poder discriminativo, seguida por `a
 │       ├── run_manifest.json
 │       ├── confusion_matrix.csv
 │       ├── error_groups.csv
+│       ├── age_by_marital_within_class.csv
 │       ├── age_univariate_examples.csv
 │       ├── duration_univariate_examples.csv
 │       └── marital_univariate_examples.csv
@@ -250,7 +251,7 @@ Qualitativamente, `duration` possui o maior poder discriminativo, seguida por `a
 
 ## 9. Pré-requisitos de Ambiente
 
-- **Linguagem**: Python $\ge$ 3.10 (validado e testado no **Python 3.13.7**).
+- **Linguagem**: Python $\ge$ 3.12 (pipeline e dependências fixadas validados no **Python 3.12.10**).
 - **Sistema Operacional**: Windows, Linux ou macOS.
 - **Gerenciador de Ambientes**: Módulo padrão `venv` do Python.
 
@@ -284,19 +285,27 @@ Executa todas as checagens formais de contrato, esquema, hash e split sem criar 
 python -m src.run_experiment --validate-only
 ```
 
-### 11.2 Execução do Estudo Completo de Ponta a Ponta
-Regenera todos os parâmetros, tabelas CSV, figuras PNG, métricas e o manifesto de execução:
+### 11.2 Regeneração das análises sem novo acesso ao holdout
+Regenera parâmetros, tabelas CSV, figuras PNG e o manifesto. Se já existir uma avaliação
+final auditada, suas métricas são preservadas para evitar acesso desnecessário ao teste:
 ```bash
 python -m src.run_experiment
 ```
 
-### 11.3 Execução da Suíte de Testes Automatizada
-Executa os 246 testes unitários, matemáticos e de integração:
+### 11.3 Reprodução integral, incluindo a avaliação final
+Em um clone destinado à reprodução, este comando também recalcula a matriz de confusão
+e as métricas do holdout. A nova execução fica registrada em `evaluation_history.json`:
+```bash
+python -m src.run_experiment --force-reproduce
+```
+
+### 11.4 Execução da Suíte de Testes Automatizada
+Executa os 247 testes unitários, matemáticos e de integração:
 ```bash
 pytest -q
 ```
 
-### 11.4 Inspeção Interativa dos Notebooks
+### 11.5 Inspeção Interativa dos Notebooks
 Para inspecionar as tabelas formatadas e diagnósticos interativamente:
 ```bash
 python -m pip install ipykernel
@@ -311,6 +320,10 @@ A execução do estudo consolida artefatos em `reports/`:
 
 ### 12.1 Manifesto de Execução ([`run_manifest.json`](reports/metrics/run_manifest.json))
 Registra metadados de execução, plataforma, hash dos dados, hiperparâmetros e famílias de distribuição de acordo com a especificação de reprodutibilidade do projeto.
+
+O diagnóstico [`age_by_marital_within_class.csv`](reports/metrics/age_by_marital_within_class.csv)
+resume, exclusivamente no treino, a contagem e a idade média/mediana por classe e estado
+civil. Ele documenta quantitativamente uma limitação da independência condicional.
 
 ### 12.2 Métricas Finais Auditadas no Holdout ([`final_metrics.json`](reports/metrics/final_metrics.json))
 Resultados obtidos sobre as 905 observações congeladas de teste:
@@ -356,9 +369,11 @@ A acurácia de 88,73% supera o baseline majoritário de 88,51% em somente 0,22 p
 
 ## 14. Limitações Principais
 
-1. **Hipótese Ingênua de Independência Condicional**: Assume que idade, duração e estado civil são independentes dadas as classes, embora atributos como idade e estado civil apresentem correlações empíricas evidentes.
-2. **Variável `duration` Pós-Contato (Viés de Seleção)**: A duração da chamada só é conhecida após o encerramento do contato. Portanto, em um cenário de triagem bancária a priori (antes de discar para o cliente), essa variável não está disponível.
-3. **Desbalanceamento Severo**: A probabilidade a priori da classe negativa ($~88,5\%$) impõe um limiar elevado ($\Lambda > 7{,}67$), fazendo com que o classificador seja conservador na atribuição da classe positiva.
+1. **Hipótese Ingênua de Independência Condicional**: Assume que idade, duração e estado civil são independentes dada a classe, embora `age` e `marital` permaneçam claramente associados no treino. Entre os não aderentes, por exemplo, a idade média varia de 34,04 anos (`single`) a 44,45 (`divorced`); entre os aderentes, varia de 33,57 a 49,30 anos. As contagens, médias e medianas completas estão em [`age_by_marital_within_class.csv`](reports/metrics/age_by_marital_within_class.csv). Isso não invalida o classificador, mas mostra que a fatoração Naive Bayes é uma aproximação.
+2. **Normal como aproximação para `age`**: Idade é inteira, limitada, assimétrica e pode misturar subpopulações. A Normal foi adotada pela simplicidade e interpretabilidade das fronteiras, sem alegação de que seja a distribuição verdadeira ou a melhor família possível.
+3. **Gamma como ajuste relativo para `duration`**: A Gamma obteve AIC e estatística KS menores que a Exponencial nas duas classes do treino. Esse resultado sustenta somente um ajuste relativo melhor entre as candidatas comparadas, não uma prova de aderência absoluta.
+4. **Variável `duration` Pós-Contato (Viés de Seleção)**: A duração da chamada só é conhecida após o encerramento do contato. Portanto, em um cenário de triagem bancária a priori (antes de discar para o cliente), essa variável não está disponível.
+5. **Desbalanceamento Severo**: A probabilidade a priori da classe negativa ($~88,5\%$) impõe um limiar elevado ($\Lambda > 7{,}67$), fazendo com que o classificador seja conservador na atribuição da classe positiva.
 
 ---
 

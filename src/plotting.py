@@ -248,10 +248,11 @@ def plot_duration_analysis(
     _setup_style()
 
     all_durations = np.concatenate([train_duration_0, train_duration_1])
+    observed_min = float(all_durations.min())
     p99 = float(np.percentile(all_durations, 99))
     total_max = float(all_durations.max())
 
-    x_min = 1.0  # Gamma com loc=0, evitamos x=0
+    x_min = observed_min
     x_max_plot = p99 * 1.15
     x = np.linspace(x_min, x_max_plot, n_points)
 
@@ -280,11 +281,12 @@ def plot_duration_analysis(
     ax1.set_title("Densidades Condicionais (Gamma) e Histogramas")
     ax1.legend(loc="upper right", fontsize=8)
 
-    # Nota do intervalo total
+    # Nota do intervalo observado e do recorte visual da cauda
     ax1.annotate(
-        f"Intervalo total: [1, {total_max:.0f}]s — Exibindo até P99 ≈ {p99:.0f}s",
-        xy=(0.98, 0.95), xycoords="axes fraction",
-        ha="right", va="top", fontsize=8,
+        f"Intervalo observado: [{observed_min:.0f}, {total_max:.0f}]s — "
+        f"Exibindo até 1,15 × P99 ≈ {x_max_plot:.0f}s",
+        xy=(0.02, 0.95), xycoords="axes fraction",
+        ha="left", va="top", fontsize=8,
         bbox=dict(boxstyle="round,pad=0.3", fc="lightyellow", alpha=0.8),
     )
 

@@ -12,6 +12,7 @@ Valida:
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 import pytest
 from sklearn.metrics import (
     accuracy_score,
@@ -26,6 +27,7 @@ from src.evaluation import (
     compute_majority_baseline,
     compute_metrics,
     extract_confusion_components,
+    summarize_age_by_marital,
 )
 
 
@@ -154,3 +156,24 @@ class TestEvaluationRobustnessAndEdgeCases:
     def test_extract_components_rejects_non_2x2_matrix(self) -> None:
         with pytest.raises(ValueError, match=r"\(2, 2\)"):
             extract_confusion_components(np.zeros((3, 3)))
+
+
+def test_summarize_age_by_marital_uses_within_class_groups() -> None:
+    """O diagnóstico preserva classes e categorias sem misturar observações."""
+    X = pd.DataFrame(
+        {
+            "age": [20, 40, 60, 30, 50],
+            "duration": [100, 200, 300, 400, 500],
+            "marital": ["single", "married", "married", "single", "divorced"],
+        },
+        index=[10, 20, 30, 40, 50],
+    )
+    y = pd.Series([0, 0, 0, 1, 1], index=X.index)
+
+    result = summarize_age_by_marital(X, y).set_index(["actual_class", "marital"])
+
+    assert result.loc[(0, "married"), "n"] == 2
+    assert result.loc[(0, "married"), "age_mean"] == pytest.approx(50.0)
+    assert result.loc[(0, "single"), "age_median"] == pytest.approx(20.0)
+    assert result.loc[(1, "divorced"), "age_mean"] == pytest.approx(50.0)
+    assert result.loc[(1, "single"), "age_mean"] == pytest.approx(30.0)

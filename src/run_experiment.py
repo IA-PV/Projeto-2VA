@@ -128,8 +128,9 @@ def run(
 
     Se full_pipeline=False (padrão para testes unitários de ajuste), ajusta no
     treino e exporta model_parameters.json, retornando seu caminho.
-    Se full_pipeline=True (execução oficial do estudo completo), regenera parâmetros,
-    tabelas, figuras, métricas e manifesto sem intervenção manual.
+    Se full_pipeline=True, regenera parâmetros, tabelas, figuras e manifesto. A
+    avaliação auditada existente é preservada por padrão; ``force_reproduce=True``
+    ou um motivo documentado permitem reproduzi-la explicitamente.
     """
     cfg = config or ExperimentConfig()
     data_path = DATA_PATH if DATA_PATH != Path("data/raw/bank.csv") else cfg.data_path
