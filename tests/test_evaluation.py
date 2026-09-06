@@ -1,7 +1,7 @@
-"""Testes de avaliação e métricas — RFC-0006 e RFC-0007.
+"""Testes de avaliação e métricas supervisionadas.
 
 Valida:
-- Fixture manual obrigatória da RFC-0006.
+- Fixture manual de avaliação.
 - Matriz de confusão com convenção linhas=reais, colunas=preditas.
 - Extração dos 4 componentes: VN=2, FP=1, FN=1, VP=2.
 - Fórmulas manuais de acurácia, precisão, recall e F1.
@@ -30,18 +30,18 @@ from src.evaluation import (
 
 
 @pytest.fixture
-def rfc0006_fixture() -> tuple[np.ndarray, np.ndarray]:
-    """Fixture manual obrigatória da RFC-0006."""
+def manual_fixture() -> tuple[np.ndarray, np.ndarray]:
+    """Fixture manual com 6 observações e confusão assimétrica."""
     y_true = np.array([0, 0, 0, 1, 1, 1])
     y_pred = np.array([0, 0, 1, 0, 1, 1])
     return y_true, y_pred
 
 
-class TestRFC0006ManualEvaluation:
-    """Validação da fixture manual descrita na RFC-0006."""
+class TestManualEvaluation:
+    """Validação da fixture manual descrita na especificação de testes."""
 
-    def test_confusion_matrix_values(self, rfc0006_fixture: tuple[np.ndarray, np.ndarray]) -> None:
-        y_true, y_pred = rfc0006_fixture
+    def test_confusion_matrix_values(self, manual_fixture: tuple[np.ndarray, np.ndarray]) -> None:
+        y_true, y_pred = manual_fixture
         cm = compute_confusion_matrix(y_true, y_pred, labels=(0, 1))
 
         # Matriz esperada:
@@ -50,8 +50,8 @@ class TestRFC0006ManualEvaluation:
         expected_cm = np.array([[2, 1], [1, 2]], dtype=int)
         np.testing.assert_array_equal(cm, expected_cm)
 
-    def test_extracted_components(self, rfc0006_fixture: tuple[np.ndarray, np.ndarray]) -> None:
-        y_true, y_pred = rfc0006_fixture
+    def test_extracted_components(self, manual_fixture: tuple[np.ndarray, np.ndarray]) -> None:
+        y_true, y_pred = manual_fixture
         cm = compute_confusion_matrix(y_true, y_pred)
         comps = extract_confusion_components(cm)
 
@@ -60,8 +60,8 @@ class TestRFC0006ManualEvaluation:
         assert comps["fn"] == 1
         assert comps["tp"] == 2
 
-    def test_metrics_values(self, rfc0006_fixture: tuple[np.ndarray, np.ndarray]) -> None:
-        y_true, y_pred = rfc0006_fixture
+    def test_metrics_values(self, manual_fixture: tuple[np.ndarray, np.ndarray]) -> None:
+        y_true, y_pred = manual_fixture
         metrics = compute_metrics(y_true, y_pred, pos_label=1)
 
         # acurácia=4/6, precisão=2/3, recall=2/3, F1=2/3
@@ -70,9 +70,9 @@ class TestRFC0006ManualEvaluation:
         assert metrics["recall"] == pytest.approx(2 / 3, rel=1e-12, abs=1e-12)
         assert metrics["f1"] == pytest.approx(2 / 3, rel=1e-12, abs=1e-12)
 
-    def test_matches_sklearn_oracle(self, rfc0006_fixture: tuple[np.ndarray, np.ndarray]) -> None:
+    def test_matches_sklearn_oracle(self, manual_fixture: tuple[np.ndarray, np.ndarray]) -> None:
         """Compara a implementação manual com scikit-learn como oráculo secundário."""
-        y_true, y_pred = rfc0006_fixture
+        y_true, y_pred = manual_fixture
 
         # Matriz
         cm_manual = compute_confusion_matrix(y_true, y_pred, labels=(0, 1))

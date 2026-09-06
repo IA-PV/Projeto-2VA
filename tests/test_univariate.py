@@ -1,9 +1,9 @@
-"""RFC-0004: testes da análise Bayesiana univariada.
+"""Testes da análise Bayesiana univariada.
 
 Cobre:
 - Cálculos manuais de posterior
 - Estabilidade logsumexp
-- Smoke values da RFC
+- Smoke values da especificação
 - Propriedades algébricas das posteriors
 - Regra categórica
 - Fronteiras contínuas
@@ -63,8 +63,8 @@ class TestComputeLogScores:
 
 
 class TestComputePosteriors:
-    def test_rfc0006_conceptual_prior_dominance_example(self):
-        """Exemplo conceitual central da RFC-0006.
+    def test_conceptual_prior_dominance_example(self):
+        """Exemplo conceitual de dominância da prior.
 
         P(0)=0.8, P(1)=0.2
         p(x|0)=0.1, p(x|1)=0.3
@@ -315,13 +315,13 @@ class TestBuildCategoricalRule:
 
 
 # ──────────────────────────────────────────────
-#  Smoke values da RFC-0004 (integração com dados reais)
+#  Smoke values da especificação (integração com dados reais)
 # ──────────────────────────────────────────────
 
 
 @pytest.mark.regression
 class TestSmokeValuesAge:
-    """Smoke values esperados da RFC: likelihood ≈26.95 e ≈50.44, MAP ≈72.64."""
+    """Smoke values esperados: likelihood ≈26.95 e ≈50.44, MAP ≈72.64."""
 
     @pytest.fixture(autouse=True)
     def _setup(self, data_split):

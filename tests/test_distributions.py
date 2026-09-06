@@ -1,4 +1,4 @@
-"""RFC-0003: exemplos manuais, estabilidade, contratos e referências de treino."""
+"""Exemplos manuais, estabilidade, contratos e referências de treino."""
 
 from dataclasses import FrozenInstanceError
 from math import log, pi
@@ -29,7 +29,7 @@ from src.distributions import (
 
 
 def test_gaussian_manual_mle_and_logpdf():
-    # Fixture manual obrigatória da RFC-0006: values = np.array([1.0, 2.0, 3.0])
+    # Fixture manual: values = np.array([1.0, 2.0, 3.0])
     values = np.array([1.0, 2.0, 3.0])
     params = fit_gaussian_mle(values)
 
@@ -78,7 +78,7 @@ def test_gaussian_variance_floor_only_for_zero():
 
 
 def test_gamma_manual_logpdf():
-    # Fixture exata da RFC-0006: params = GammaParams(shape=2.0, scale=3.0), values = [1.0, 3.0, 6.0]
+    # Fixture manual: params = GammaParams(shape=2.0, scale=3.0), values = [1.0, 3.0, 6.0]
     params = GammaParams(shape=2.0, scale=3.0)
     values = np.array([1.0, 3.0, 6.0])
 
@@ -199,7 +199,7 @@ def test_invalid_evaluation_and_overflow_are_explicit():
 
 
 def test_laplace_manual_with_absent_category():
-    # Fixture exata da RFC-0006:
+    # Fixture manual com categoria ausente:
     values = pd.Series(["single", "single", "married"])
     categories = ("divorced", "married", "single")
     alpha = 1.0
@@ -207,7 +207,7 @@ def test_laplace_manual_with_absent_category():
     probs = fit_categorical(values, categories=categories, alpha=alpha)
     assert list(probs.keys()) == list(categories)
 
-    # Contagens suavizadas esperadas da RFC-0006:
+    # Contagens suavizadas esperadas:
     # divorced: (0 + 1) / (3 + 3) = 1/6
     # married: (1 + 1) / (3 + 3) = 2/6
     # single: (2 + 1) / (3 + 3) = 3/6
@@ -215,7 +215,7 @@ def test_laplace_manual_with_absent_category():
     for cat, p_exp in expected_probs.items():
         assert probs[cat] == pytest.approx(p_exp, rel=1e-12, abs=1e-12)
 
-    # Soma estritamente igual a 1 (tolerância RFC-0006: atol=1e-12)
+    # Soma estritamente igual a 1 (tolerância: atol=1e-12)
     assert sum(probs.values()) == pytest.approx(1.0, abs=1e-12)
 
     # Nenhuma probabilidade zero
@@ -282,7 +282,7 @@ def test_aic_rejects_invalid_parameter_counts(q):
          [64, 220, 133], 6110.93, 5986.05, 0.1802, 0.0525),
     ],
 )
-def test_rfc_training_references(
+def test_training_references(
     data_split, c, count, mean, std, shape, scale, counts,
     exp_aic, gamma_aic, exp_ks, gamma_ks,
 ):

@@ -1,4 +1,4 @@
-"""Teste de não-vazamento de dados (Data Leakage) — RFC-0006.
+"""Teste de não-vazamento de dados (Data Leakage).
 
 Prova formalmente que:
 1. O método `fit` recebe exclusivamente o conjunto de treino (X_train, y_train).

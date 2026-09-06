@@ -1,4 +1,4 @@
-"""Fixtures compartilhadas para o test suite — RFC-0002."""
+"""Fixtures compartilhadas para a suíte de testes de dados."""
 
 from __future__ import annotations
 

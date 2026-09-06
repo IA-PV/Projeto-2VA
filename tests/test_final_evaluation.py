@@ -1,4 +1,4 @@
-"""RFC-0007: protocolo e artefatos em fixtures sintéticas, sem avaliar o holdout."""
+"""Protocolo e artefatos de avaliação em fixtures sintéticas, sem avaliar o holdout."""
 
 import json
 
