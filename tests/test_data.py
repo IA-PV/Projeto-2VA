@@ -47,6 +47,7 @@ from src.data import (
 # ════════════════════════════════════════════════════════
 
 
+@pytest.mark.regression
 class TestLoadBankData:
     """Testes para ``load_bank_data``."""
 
@@ -72,6 +73,7 @@ class TestLoadBankData:
 # ════════════════════════════════════════════════════════
 
 
+@pytest.mark.regression
 class TestHash:
     """Verificação do hash normalizado."""
 
@@ -87,6 +89,7 @@ class TestHash:
 # ════════════════════════════════════════════════════════
 
 
+@pytest.mark.regression
 class TestValidateRawData:
     """Testes usando o arquivo real."""
 
@@ -145,11 +148,25 @@ class TestValidateRejectsInvalid:
         with pytest.raises(ValueError, match=r"V03"):
             validate_raw_data(df)
 
+    def test_extra_column_rejected(self) -> None:
+        """Caso 5 da RFC-0006: coluna extra deve ser rejeitada."""
+        df = self._make_valid_df().assign(extra_col=1)
+        with pytest.raises(ValueError, match=r"V03"):
+            validate_raw_data(df)
+
     def test_wrong_column_names(self) -> None:
         df = self._make_valid_df()
         df = df.rename(columns={"age": "idade"})
         with pytest.raises(ValueError, match=r"V04"):
             validate_raw_data(df)
+
+    def test_incorrect_separator_detected(self, tmp_path: Path) -> None:
+        """Caso 3 da RFC-0006: separador incorreto é detectado."""
+        bad_csv = tmp_path / "bad_sep.csv"
+        bad_csv.write_text("age,job,marital\n30,admin,single\n", encoding="utf-8")
+        bad_df = load_bank_data(bad_csv)
+        with pytest.raises(ValueError, match=r"V03|V04"):
+            validate_raw_data(bad_df)
 
     def test_wrong_row_count(self) -> None:
         df = self._make_valid_df()
@@ -157,15 +174,19 @@ class TestValidateRejectsInvalid:
         with pytest.raises(ValueError, match=r"V05"):
             validate_raw_data(df)
 
-    def test_null_in_model_column(self) -> None:
+    @pytest.mark.parametrize("col", ["age", "duration", "marital", "y"])
+    def test_null_in_any_model_column_rejected(self, col: str) -> None:
+        """Caso 6 da RFC-0006: valor nulo em feature ou target é rejeitado."""
         df = self._make_valid_df()
-        df.loc[0, "age"] = None
+        df.loc[0, col] = None
         with pytest.raises(ValueError, match=r"V06"):
             validate_raw_data(df)
 
-    def test_duration_not_positive(self) -> None:
+    @pytest.mark.parametrize("bad_duration", [0, -1, -50])
+    def test_duration_not_positive(self, bad_duration: int) -> None:
+        """Caso 7 da RFC-0006: duration <= 0 é rejeitada."""
         df = self._make_valid_df()
-        df.loc[0, "duration"] = 0
+        df.loc[0, "duration"] = bad_duration
         with pytest.raises(ValueError, match=r"V08"):
             validate_raw_data(df)
 
@@ -210,6 +231,7 @@ class TestValidateRejectsInvalid:
 # ════════════════════════════════════════════════════════
 
 
+@pytest.mark.regression
 class TestPrepareModelFrame:
     """Testes para ``prepare_model_frame``."""
 
@@ -258,6 +280,7 @@ class TestPrepareModelFrame:
 # ════════════════════════════════════════════════════════
 
 
+@pytest.mark.regression
 class TestMakeStratifiedSplit:
     """Testes para ``make_stratified_split``."""
 
@@ -303,6 +326,12 @@ class TestMakeStratifiedSplit:
         overlap = set(data_split.X_train.index) & set(data_split.X_test.index)
         assert len(overlap) == 0
 
+    def test_index_union_covers_full_dataset(self, data_split: DataSplit) -> None:
+        """Caso 14 da RFC-0006: união dos índices cobre a base completa."""
+        union = set(data_split.X_train.index) | set(data_split.X_test.index)
+        assert union == set(range(EXPECTED_ROWS))
+        assert len(data_split.X_train) + len(data_split.X_test) == EXPECTED_ROWS
+
     def test_frozen_dataclass(self, data_split: DataSplit) -> None:
         """DataSplit é imutável."""
         with pytest.raises(AttributeError):
@@ -314,6 +343,7 @@ class TestMakeStratifiedSplit:
 # ════════════════════════════════════════════════════════
 
 
+@pytest.mark.regression
 class TestSaveSplitReport:
     """Testes para ``save_split_report``."""
 

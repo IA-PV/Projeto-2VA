@@ -223,7 +223,7 @@ def validate_raw_data(
             errors.append(
                 f"[V09] Categorias de 'marital' inesperadas.\n"
                 f"  Esperado: {sorted(MARITAL_CATEGORIES)}\n"
-                f"  Obtido:   {sorted(actual_cats)}"
+                f"  Obtido:   {sorted(str(x) for x in actual_cats)}"
             )
 
     # ── 10. Alvo contém exatamente no e yes ──
@@ -233,7 +233,7 @@ def validate_raw_data(
             errors.append(
                 f"[V10] Valores do alvo '{TARGET_COLUMN}' inesperados.\n"
                 f"  Esperado: {sorted(TARGET_CATEGORIES)}\n"
-                f"  Obtido:   {sorted(actual_target)}"
+                f"  Obtido:   {sorted(str(x) for x in actual_target)}"
             )
 
     # ── 11. Codificação gera apenas 0 e 1 ──

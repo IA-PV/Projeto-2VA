@@ -29,12 +29,46 @@ from src.distributions import (
 
 
 def test_gaussian_manual_mle_and_logpdf():
-    # Média 2; soma dos desvios quadráticos 2; divisor MLE 3 (não 2).
-    params = fit_gaussian_mle(np.array([1, 2, 3]))
-    assert params.mean == 2
-    assert params.variance == pytest.approx(2 / 3)
-    expected = np.array([-0.5 * log(4 * pi / 3), -0.5 * log(4 * pi / 3) - 0.75])
-    np.testing.assert_allclose(gaussian_logpdf(np.array([2, 3]), params), expected)
+    # Fixture manual obrigatória da RFC-0006: values = np.array([1.0, 2.0, 3.0])
+    values = np.array([1.0, 2.0, 3.0])
+    params = fit_gaussian_mle(values)
+
+    # 1. Média mu = 2
+    assert params.mean == 2.0
+
+    # 2. Variância MLE sigma^2 = 2/3
+    assert params.variance == pytest.approx(2 / 3, rel=1e-10, abs=1e-12)
+
+    # 3. Diferença em relação à variância amostral (ddof=1)
+    sample_var = np.var(values, ddof=1)  # 1.0
+    assert sample_var == 1.0
+    assert params.variance != sample_var
+    assert params.variance == pytest.approx(np.var(values, ddof=0), rel=1e-10, abs=1e-12)
+
+    # 4. Log-pdf no ponto x=2 contra cálculo manual exato: -0.5 * ln(4*pi/3)
+    expected_at_2 = -0.5 * log(4 * pi / 3)
+    np.testing.assert_allclose(
+        gaussian_logpdf(np.array([2.0]), params),
+        [expected_at_2],
+        rtol=1e-10,
+        atol=1e-12,
+    )
+
+    # 5. Vetorização para vários valores contra cálculos manuais:
+    # x=1: -0.5*ln(4*pi/3) - 0.75
+    # x=2: -0.5*ln(4*pi/3)
+    # x=3: -0.5*ln(4*pi/3) - 0.75
+    expected_vector = np.array([
+        expected_at_2 - 0.75,
+        expected_at_2,
+        expected_at_2 - 0.75,
+    ])
+    np.testing.assert_allclose(
+        gaussian_logpdf(np.array([1.0, 2.0, 3.0]), params),
+        expected_vector,
+        rtol=1e-10,
+        atol=1e-12,
+    )
 
 
 def test_gaussian_variance_floor_only_for_zero():
@@ -44,19 +78,41 @@ def test_gaussian_variance_floor_only_for_zero():
 
 
 def test_gamma_manual_logpdf():
-    # Gamma(2,3): p(3)=exp(-1)/3 e p(6)=2*exp(-2)/3; Gamma(2)=1.
-    actual = gamma_logpdf(np.array([3, 6]), GammaParams(shape=2, scale=3))
-    np.testing.assert_allclose(actual, [-1 - log(3), log(2) - 2 - log(3)])
+    # Fixture exata da RFC-0006: params = GammaParams(shape=2.0, scale=3.0), values = [1.0, 3.0, 6.0]
+    params = GammaParams(shape=2.0, scale=3.0)
+    values = np.array([1.0, 3.0, 6.0])
+
+    # 1. Cálculo manual: f(x) = (x / 9) * exp(-x/3)
+    # x=1: log(1/9) - 1/3 = -2*log(3) - 1/3
+    # x=3: log(3/9) - 1 = -log(3) - 1
+    # x=6: log(6/9) - 2 = log(2/3) - 2 = log(2) - log(3) - 2
+    expected_manual = np.array([
+        -2 * log(3) - (1 / 3),
+        -log(3) - 1.0,
+        log(2) - log(3) - 2.0,
+    ])
+    actual = gamma_logpdf(values, params)
+    np.testing.assert_allclose(actual, expected_manual, rtol=1e-10, atol=1e-12)
+
+    # 2. Oráculo secundário independente: scipy.stats.gamma.logpdf(values, a=2, loc=0, scale=3)
+    scipy_expected = stats.gamma.logpdf(values, a=2.0, loc=0.0, scale=3.0)
+    np.testing.assert_allclose(actual, scipy_expected, rtol=1e-10, atol=1e-12)
 
 
 def test_gamma_mle_satisfies_likelihood_equations():
-    x = np.array([1, 2, 3, 6, 9], dtype=float)
+    x = np.array([1.0, 2.0, 3.0, 6.0, 9.0], dtype=float)
     params = fit_gamma_mle(x)
-    assert params.shape * params.scale == pytest.approx(x.mean())
+    # Parâmetros positivos após ajuste
+    assert params.shape > 0
+    assert params.scale > 0
+    # Média teórica k * theta próxima à amostra
+    assert params.shape * params.scale == pytest.approx(x.mean(), rel=1e-6)
+    # Equação de verossimilhança
     assert log(params.shape) - digamma(params.shape) == pytest.approx(
-        log(x.mean()) - np.log(x).mean()
+        log(x.mean()) - np.log(x).mean(), rel=1e-6
     )
-    assert np.isfinite(gamma_logpdf(x, params)).all()
+    # Log-likelihood finita
+    assert np.all(np.isfinite(gamma_logpdf(x, params)))
 
 
 def test_exponential_manual_mle_logpdf_and_aic():
@@ -143,15 +199,36 @@ def test_invalid_evaluation_and_overflow_are_explicit():
 
 
 def test_laplace_manual_with_absent_category():
-    observed = pd.Series(["married", "married", "single"])
-    probs = fit_categorical(observed, MARITAL_CATEGORIES, alpha=1)
-    assert list(probs) == list(MARITAL_CATEGORIES)
-    assert probs == pytest.approx({"divorced": 1 / 6, "married": 3 / 6, "single": 2 / 6})
-    assert np.isclose(sum(probs.values()), 1)
-    np.testing.assert_allclose(
-        categorical_logpmf(pd.Series(["divorced", "single", "married"]), probs),
-        [log(1 / 6), log(2 / 6), log(3 / 6)],
-    )
+    # Fixture exata da RFC-0006:
+    values = pd.Series(["single", "single", "married"])
+    categories = ("divorced", "married", "single")
+    alpha = 1.0
+
+    probs = fit_categorical(values, categories=categories, alpha=alpha)
+    assert list(probs.keys()) == list(categories)
+
+    # Contagens suavizadas esperadas da RFC-0006:
+    # divorced: (0 + 1) / (3 + 3) = 1/6
+    # married: (1 + 1) / (3 + 3) = 2/6
+    # single: (2 + 1) / (3 + 3) = 3/6
+    expected_probs = {"divorced": 1 / 6, "married": 2 / 6, "single": 3 / 6}
+    for cat, p_exp in expected_probs.items():
+        assert probs[cat] == pytest.approx(p_exp, rel=1e-12, abs=1e-12)
+
+    # Soma estritamente igual a 1 (tolerância RFC-0006: atol=1e-12)
+    assert sum(probs.values()) == pytest.approx(1.0, abs=1e-12)
+
+    # Nenhuma probabilidade zero
+    assert all(p > 0 for p in probs.values())
+
+    # Log-pmf
+    log_pmf = categorical_logpmf(pd.Series(["divorced", "married", "single"]), probs)
+    np.testing.assert_allclose(log_pmf, [log(1 / 6), log(2 / 6), log(3 / 6)], atol=1e-12)
+
+    # Resultados independem da ordem das linhas
+    shuffled_values = pd.Series(["married", "single", "single"])
+    probs_shuffled = fit_categorical(shuffled_values, categories=categories, alpha=alpha)
+    assert probs_shuffled == probs
 
 
 @pytest.mark.parametrize("values", [["unknown"], [None], []])
@@ -196,6 +273,7 @@ def test_aic_rejects_invalid_parameter_counts(q):
         aic(np.array([-1, -2]), q=q)
 
 
+@pytest.mark.regression
 @pytest.mark.parametrize(
     "c,count,mean,std,shape,scale,counts,exp_aic,gamma_aic,exp_ks,gamma_ks", [
         (0, 3199, 40.87183, 10.06207, 1.52854, 147.44781,
