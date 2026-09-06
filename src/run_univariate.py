@@ -388,6 +388,8 @@ def run() -> None:
     # Figuras
     plot_age_analysis(
         age_params_0, age_params_1, priors,
+        X_train.loc[mask_0, "age"].to_numpy(),
+        X_train.loc[mask_1, "age"].to_numpy(),
         age_lr_boundaries, age_map_boundaries,
         UNIVARIATE_FIGURES_DIR / "age_conditional_and_decision.png",
     )

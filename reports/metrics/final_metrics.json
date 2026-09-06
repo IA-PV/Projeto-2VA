@@ -34,8 +34,8 @@
     "no_positive_predictions": true,
     "sklearn_consistency_verified": true
   },
-  "run_id": 2,
-  "evaluated_at_utc": "2026-09-06T01:52:31.903688+00:00",
+  "run_id": 3,
+  "evaluated_at_utc": "2026-09-06T03:04:40.799946+00:00",
   "error_analysis_references": {
     "duration_map_boundary_train": 808.4335120314821,
     "duration_q95_train": 756.2500,

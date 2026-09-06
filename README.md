@@ -1,6 +1,6 @@
 # Projeto de IA: Classificação Bayesiana Pura e Mista
 
-Implementação rigorosa e reproduzível de um classificador probabilístico supervisionado baseado em **Inferência Bayesiana Pura** (sem estimadores caixa-preta de terceiros) sobre o dataset bancário [UCI Bank Marketing](https://archive.ics.uci.edu/dataset/222/bank+marketing), em conformidade com as diretrizes da disciplina e governado por especificações técnicas de engenharia e governança de software.
+Implementação rigorosa e reproduzível de um classificador probabilístico supervisionado baseado em **Inferência Bayesiana Pura** sobre o dataset bancário [UCI Bank Marketing](https://archive.ics.uci.edu/dataset/222/bank+marketing). A regra do classificador foi implementada pela dupla, sem uso de um classificador pronto; o SciPy é empregado apenas no ajuste numérico do MLE da distribuição Gamma e em diagnósticos auxiliares.
 
 ---
 
@@ -26,6 +26,30 @@ Implementação rigorosa e reproduzível de um classificador probabilístico sup
   `dc8d576e9bda0f41ee891251bd84bab9a39ce576cba715aac08adc2374a01fde`
 - **Substituição**: A fonte de dados é congelada. Qualquer alteração ou substituição exige atualização e revisão formal do contrato de dados.
 
+### 3.1 Atributos disponíveis e tipos
+
+A amostra possui 16 atributos preditores e a variável-alvo `y`. A classificação abaixo considera tanto o tipo armazenado no CSV quanto o significado de cada variável:
+
+| Atributo | Tipo | Significado resumido |
+|---|---|---|
+| `age` | Numérico inteiro | Idade do cliente |
+| `job` | Categórico nominal | Ocupação |
+| `marital` | Categórico nominal | Estado civil |
+| `education` | Categórico ordinal | Escolaridade declarada |
+| `default` | Categórico binário | Inadimplência de crédito |
+| `balance` | Numérico inteiro | Saldo médio anual |
+| `housing` | Categórico binário | Empréstimo habitacional |
+| `loan` | Categórico binário | Empréstimo pessoal |
+| `contact` | Categórico nominal | Meio de contato |
+| `day` | Numérico inteiro | Dia do mês do último contato |
+| `month` | Categórico nominal | Mês do último contato |
+| `duration` | Numérico inteiro positivo | Duração do último contato, em segundos |
+| `campaign` | Numérico inteiro | Contatos realizados nesta campanha |
+| `pdays` | Numérico inteiro | Dias desde o contato anterior; `-1` indica ausência de contato anterior |
+| `previous` | Numérico inteiro | Contatos anteriores à campanha atual |
+| `poutcome` | Categórico nominal | Resultado da campanha anterior |
+| `y` | Categórico binário (alvo) | Adesão ao depósito a prazo: `no` ou `yes` |
+
 ---
 
 ## 4. Problema de Classificação
@@ -49,9 +73,11 @@ A variável-alvo $y$ é mapeada de maneira estrita e determinística:
 ## 6. Três Atributos Selecionados
 
 Conforme definido no contrato de dados e na especificação do projeto, foram selecionados exatamente três atributos de tipos distintos:
-1. **`age`** (numérico contínuo/inteiro): Idade do cliente (faixa observada: 18 a 95 anos).
-2. **`duration`** (numérico contínuo positivo): Duração do último contato telefônico em segundos (faixa observada: 0 a 4.918 segundos).
+1. **`age`** (numérico inteiro, modelado como contínuo): Idade do cliente (faixa observada nesta amostra: 19 a 87 anos).
+2. **`duration`** (numérico inteiro positivo, modelado como contínuo): Duração do último contato telefônico em segundos (faixa observada nesta amostra: 4 a 3.025 segundos).
 3. **`marital`** (categórico politômico): Estado civil do cliente com domínio estrito $\mathcal{D} = \{\text{divorced}, \text{married}, \text{single}\}$.
+
+As características foram escolhidas para combinar dois tipos de evidência em um único classificador e permitir análises com interpretações distintas. `age` representa um perfil demográfico disponível antes da campanha; `duration` representa o nível de engajamento observado durante a ligação e possui forte associação empírica com a resposta; `marital` introduz uma variável nominal de três categorias. Essa escolha também permite demonstrar explicitamente a combinação de densidades contínuas com probabilidades discretas.
 
 ---
 
@@ -67,11 +93,103 @@ Toda a estimação de parâmetros é realizada **estritamente sobre as 3.616 obs
 | **`marital`** | Categórica | Frequência com suavização de Laplace: $\frac{N_{c,k} + \alpha}{N_c + \alpha K}$ com $\alpha=1$ e $K=3$ |
 | *Diagnóstico* | Exponencial | Taxa $\hat{\lambda}_c = 1/\bar{x}_c$; superada pela Gamma no critério AIC |
 
+### 7.1 Justificativas das hipóteses probabilísticas
+
+- **`age` — Normal:** idades de clientes adultos tendem a se concentrar em torno de uma região central, com frequências menores nos extremos. A Normal fornece uma aproximação contínua simples para esse formato e permite obter uma fronteira analítica. Trata-se de uma aproximação: idade é inteira, limitada e pode misturar subpopulações, razão pela qual a aderência também é verificada visualmente nos histogramas.
+- **`duration` — Gamma:** uma duração é estritamente positiva, assimétrica à direita e pode apresentar cauda longa devido a uma pequena quantidade de chamadas muito demoradas. A Gamma possui exatamente esse suporte e flexibilidade de forma. Além da justificativa de domínio, ela apresentou AIC e estatística KS menores que a Exponencial nas duas classes do treino.
+- **`marital` — Categórica:** os três estados civis são resultados nominais, mutuamente exclusivos e sem distância numérica natural. Portanto, a modelagem adequada consiste em estimar $P(X=a_k\mid Y=c)$ para cada categoria. A suavização de Laplace mantém a regra definida caso alguma categoria válida não apareça em uma classe do treino.
+
+### 7.2 Divisão dos dados e priors
+
+A divisão estratificada preservou aproximadamente o desbalanceamento da base:
+
+| Conjunto | Total | Classe 0 (`no`) | Classe 1 (`yes`) |
+|---|---:|---:|---:|
+| Base completa | 4.521 | 4.000 (88,48%) | 521 (11,52%) |
+| Treino | 3.616 (80%) | 3.199 (88,47%) | 417 (11,53%) |
+| Teste | 905 (20%) | 801 (88,51%) | 104 (11,49%) |
+
+Foram usados `test_size=0.20`, `random_state=42` e estratificação por `y`. As priors estimadas exclusivamente no treino são $P(Y=0)=0{,}884679$ e $P(Y=1)=0{,}115321$.
+
+### 7.3 Parâmetros estimados exclusivamente no treino
+
+| Característica | Classe 0 (`no`) | Classe 1 (`yes`) |
+|---|---|---|
+| `age` — Normal | $\mu_0=40{,}8718$, $\sigma_0^2=101{,}2452$ | $\mu_1=42{,}3645$, $\sigma_1^2=170{,}6969$ |
+| `duration` — Gamma | $k_0=1{,}5285$, $\theta_0=147{,}4478$ | $k_1=2{,}2528$, $\theta_1=247{,}8195$ |
+| `marital=divorced` | 0,114616 | 0,154762 |
+| `marital=married` | 0,625859 | 0,526190 |
+| `marital=single` | 0,259525 | 0,319048 |
+
+Os valores completos e as fronteiras calculadas estão em [`distribution_parameters.json`](reports/metrics/distribution_parameters.json).
+
 - **Razão de Verossimilhança Univariada**: $\Lambda(x) = \frac{p(x \mid Y=1)}{p(x \mid Y=0)}$.
 - **Regra de Decisão MAP**: Decide classe 1 se $\Lambda(x) > \frac{P(Y=0)}{P(Y=1)} \approx 7{,}6715$.
 - **Combinação Multivariada**: O modelo misto assume independência condicional ingênua e soma as evidências em escala logarítmica natural:
   $$\ln P(Y=c \mid \mathbf{x}) \propto \ln P(Y=c) + \ln p(\text{age} \mid c) + \ln p(\text{duration} \mid c) + \ln P(\text{marital} \mid c)$$
   As probabilidades posteriores normalizadas são obtidas numericamente via `logsumexp`.
+
+### 7.4 Exemplos numéricos completos do Teorema de Bayes
+
+Para duas classes, a posterior da classe positiva é calculada por:
+
+$$
+P(Y=1\mid x)=\frac{p(x\mid Y=1)P(Y=1)}{p(x\mid Y=0)P(Y=0)+p(x\mid Y=1)P(Y=1)}.
+$$
+
+Os valores abaixo foram arredondados apenas para apresentação; o pipeline usa precisão completa.
+
+**Exemplo 1 — `age=20`:**
+
+$$
+P(Y=1\mid 20)=
+\frac{0{,}00705535\times0{,}1153208}
+{0{,}00461202\times0{,}8846792+0{,}00705535\times0{,}1153208}
+=\frac{0{,}00081363}{0{,}00489379}
+\approx0{,}16626.
+$$
+
+Embora $p(20\mid Y=1)>p(20\mid Y=0)$ e $\Lambda(20)=1{,}5298$ forneça evidência em favor de `yes`, a posterior positiva permanece em apenas 16,63% por causa da prior majoritariamente negativa. Esse exemplo evidencia a diferença entre **verossimilhança**, que avalia o valor observado supondo uma classe, e **posterior**, que avalia a classe após combinar likelihood e prior.
+
+**Exemplo 2 — `duration=1000`:**
+
+$$
+P(Y=1\mid 1000)=
+\frac{0{,}0003609829\times0{,}1153208}
+{0{,}0000238338\times0{,}8846792+0{,}0003609829\times0{,}1153208}
+=\frac{0{,}0000416288}{0{,}0000627141}
+\approx0{,}66379.
+$$
+
+A razão $\Lambda(1000)=15{,}1458$ supera o limiar MAP de 7,6715; por isso o classificador univariado decide `yes`.
+
+**Exemplo 3 — `marital=divorced`:**
+
+$$
+P(Y=1\mid divorced)=
+\frac{0{,}15476190\times0{,}1153208}
+{0{,}11461587\times0{,}8846792+0{,}15476190\times0{,}1153208}
+=\frac{0{,}01784727}{0{,}11924554}
+\approx0{,}14967.
+$$
+
+Apesar de `divorced` ter $\Lambda=1{,}3503>1$, essa evidência não é suficiente para vencer a prior negativa, e a decisão continua sendo `no`. Outros valores podem ser consultados em [`age_univariate_examples.csv`](reports/metrics/age_univariate_examples.csv), [`duration_univariate_examples.csv`](reports/metrics/duration_univariate_examples.csv) e [`marital_univariate_examples.csv`](reports/metrics/marital_univariate_examples.csv).
+
+### 7.5 Comportamento por classe e regras univariadas
+
+![Comportamento empírico, distribuições condicionais e fronteira de age](reports/figures/age_conditional_and_decision.png)
+
+- Para `age`, as distribuições apresentam forte sobreposição. A likelihood favorece `yes` abaixo de aproximadamente 26,95 anos e acima de 50,44 anos, mas, no domínio observado, a decisão MAP somente muda para `yes` acima de 72,64 anos.
+
+![Comportamento empírico, distribuições condicionais e fronteira de duration](reports/figures/duration_conditional_and_decision.png)
+
+- Para `duration`, chamadas curtas são mais compatíveis com `no`. A likelihood passa a favorecer `yes` em aproximadamente 315,10 segundos, enquanto a prior desloca a fronteira MAP para 808,43 segundos.
+
+![Probabilidades condicionais e razões de marital](reports/figures/marital_conditional_probabilities.png)
+
+- Para `marital`, `divorced` e `single` fornecem evidência fraca em favor de `yes`, enquanto `married` favorece `no`. Nenhuma razão supera o limiar MAP; portanto, as três categorias são classificadas como `no` quando usadas isoladamente.
+
+Qualitativamente, `duration` possui o maior poder discriminativo, seguida por `age`; `marital` é a menos discriminativa. Essa conclusão considera a separação visual, a amplitude da razão de verossimilhanças e a existência de regiões MAP positivas, sem consultar o conjunto de teste.
 
 ---
 
@@ -173,7 +291,7 @@ python -m src.run_experiment
 ```
 
 ### 11.3 Execução da Suíte de Testes Automatizada
-Executa os 244 testes unitários, matemáticos e de integração:
+Executa os 246 testes unitários, matemáticos e de integração:
 ```bash
 pytest -q
 ```
@@ -212,11 +330,23 @@ Ordem canônica $[0, 1]$ (linhas: real, colunas: predito):
 - **Verdadeiros Positivos (VP)**: $27$ (cliente aderiu e o modelo previu adesão)
 - **Total**: $776 + 25 + 77 + 27 = 905$ observações.
 
+![Matriz de confusão do classificador no conjunto de teste](reports/figures/confusion_matrix.png)
+
+### 12.4 Interpretação dos erros
+
+Os **77 falsos negativos** são o erro mais importante: representam clientes que aderiram, mas foram classificados como `no`. Todos possuem `duration` abaixo da fronteira MAP univariada de 808,43 segundos, e a mediana de duração desse grupo é 328 segundos. Para esses clientes, chamadas curtas ou moderadas, combinadas com a prior negativa de 88,47%, não produziram evidência suficiente para a decisão positiva. Como consequência, o modelo identificou somente 27 dos 104 clientes positivos, resultando em recall de 25,96%.
+
+Os **25 falsos positivos** são clientes que não aderiram apesar da previsão `yes`. A mediana de duração desse grupo é 957 segundos, e 21 casos (84%) estão acima do percentil 95 de duração observado no treino. Isso mostra que chamadas excepcionalmente longas constituem uma evidência forte de adesão, mas não garantem o resultado: a distribuição de `duration` da classe negativa também possui uma cauda longa.
+
+Os verdadeiros positivos possuem mediana de duração semelhante, 994 segundos. Portanto, `duration` é útil para localizar parte dos positivos, mas não separa perfeitamente os dois resultados. `age` e `marital` acrescentam evidência insuficiente para recuperar a maioria dos positivos de duração moderada.
+
+A acurácia de 88,73% supera o baseline majoritário de 88,51% em somente 0,22 ponto percentual. Esse pequeno ganho, junto do F1 de 34,62%, confirma que a acurácia isolada é pouco informativa nesta base desbalanceada. Os resumos numéricos completos dos quatro grupos estão em [`error_groups.csv`](reports/metrics/error_groups.csv).
+
 ---
 
 ## 13. Decisões de Reprodutibilidade
 
-- **Semente e Divisão**: Semente fixa `random_state = 42`, divisão estratificada `test_size = 0.20` garantindo proporções idênticas em treino e teste.
+- **Semente e Divisão**: Semente fixa `random_state = 42`, divisão estratificada `test_size = 0.20` preservando aproximadamente as proporções das classes em treino e teste.
 - **Isolamento Total do Holdout**: O conjunto de teste nunca participa da estimativa de parâmetros, seleção de hiperparâmetros ou calibração de priors.
 - **Portão de Congelamento**: A avaliação no holdout é protegida por trava auditável em `reports/metrics/freeze_checklist.json` e `evaluation_history.json`.
 - **Portabilidade de Caminhos**: Uso exclusivo de `pathlib.Path` e caminhos relativos ao projeto, sem caminhos absolutos locais de máquina.

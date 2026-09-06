@@ -91,6 +91,8 @@ def plot_age_analysis(
     params_0: GaussianParams,
     params_1: GaussianParams,
     priors: dict[int, float],
+    train_age_0: np.ndarray,
+    train_age_1: np.ndarray,
     likelihood_boundaries: list[float],
     map_boundaries: list[float],
     save_path: Path,
@@ -99,7 +101,7 @@ def plot_age_analysis(
 ) -> Path:
     """Gera a figura de análise de age.
 
-    Painel superior: densidades condicionais p(x|Y=c).
+    Painel superior: histogramas do treino e densidades condicionais p(x|Y=c).
     Painel inferior: curvas ponderadas p(x|Y=c)·P(Y=c) com regiões de decisão.
     Ambos com fronteiras marcadas.
 
@@ -109,6 +111,8 @@ def plot_age_analysis(
         Parâmetros Gaussianos por classe.
     priors : dict[int, float]
         Priors do treino.
+    train_age_0, train_age_1 : np.ndarray
+        Idades de treino por classe, usadas somente nos histogramas empíricos.
     likelihood_boundaries : list[float]
         Fronteiras onde Λ(x) = 1.
     map_boundaries : list[float]
@@ -125,10 +129,19 @@ def plot_age_analysis(
     """
     _setup_style()
 
-    x_min = min(params_0.mean - 4 * np.sqrt(params_0.variance),
-                params_1.mean - 4 * np.sqrt(params_1.variance), 10)
-    x_max = max(params_0.mean + 4 * np.sqrt(params_0.variance),
-                params_1.mean + 4 * np.sqrt(params_1.variance), 95)
+    train_age_0 = np.asarray(train_age_0, dtype=float)
+    train_age_1 = np.asarray(train_age_1, dtype=float)
+    if train_age_0.ndim != 1 or train_age_1.ndim != 1:
+        raise ValueError("As idades de treino devem ser vetores unidimensionais.")
+    if train_age_0.size == 0 or train_age_1.size == 0:
+        raise ValueError("Cada classe deve possuir idades de treino para o histograma.")
+    if not np.isfinite(np.concatenate([train_age_0, train_age_1])).all():
+        raise ValueError("As idades de treino devem ser finitas.")
+
+    observed_min = float(min(train_age_0.min(), train_age_1.min()))
+    observed_max = float(max(train_age_0.max(), train_age_1.max()))
+    x_min = observed_min - 2
+    x_max = observed_max + 2
     x = np.linspace(x_min, x_max, n_points)
 
     pdf_0 = np.exp(gaussian_logpdf(x, params_0))
@@ -139,16 +152,21 @@ def plot_age_analysis(
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
     fig.suptitle("Análise Bayesiana Univariada — age", fontweight="bold")
 
-    # ── Painel superior: densidades condicionais ──
-    ax1.plot(x, pdf_0, color=_COLORS[0], linewidth=2, label=_LABELS[0])
-    ax1.plot(x, pdf_1, color=_COLORS[1], linewidth=2, label=_LABELS[1])
+    # ── Painel superior: comportamento empírico + densidades condicionais ──
+    bins = np.arange(np.floor(observed_min) - 0.5, np.ceil(observed_max) + 1.5, 3)
+    ax1.hist(train_age_0, bins=bins, density=True, alpha=0.22,
+             color=_COLORS[0], label=f"{_LABELS[0]} (hist)")
+    ax1.hist(train_age_1, bins=bins, density=True, alpha=0.22,
+             color=_COLORS[1], label=f"{_LABELS[1]} (hist)")
+    ax1.plot(x, pdf_0, color=_COLORS[0], linewidth=2, label=f"{_LABELS[0]} (Normal)")
+    ax1.plot(x, pdf_1, color=_COLORS[1], linewidth=2, label=f"{_LABELS[1]} (Normal)")
 
     for b in likelihood_boundaries:
         ax1.axvline(b, label=f"Λ=1 ({b:.2f})", **_BOUNDARY_STYLES["likelihood"])
 
     ax1.set_ylabel("Densidade $p(x \\mid Y=c)$")
-    ax1.set_title("Densidades Condicionais")
-    ax1.legend(loc="upper right")
+    ax1.set_title("Comportamento Empírico e Densidades Condicionais (Normal)")
+    ax1.legend(loc="upper right", fontsize=8)
 
     # ── Painel inferior: curvas ponderadas + regiões ──
     ax2.plot(x, weighted_0, color=_COLORS[0], linewidth=2, label=f"{_LABELS[0]} · P(Y=0)")

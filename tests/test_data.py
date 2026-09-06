@@ -21,6 +21,8 @@ import pandas as pd
 import pytest
 
 from src.config import (
+    AGE_RANGE,
+    DURATION_RANGE,
     EXPECTED_COLUMNS,
     EXPECTED_ROWS,
     EXPECTED_SHA256,
@@ -107,12 +109,19 @@ class TestValidateRawData:
         assert pd.api.types.is_numeric_dtype(raw_df["age"])
         assert np.all(np.isfinite(raw_df["age"]))
 
+    def test_observed_age_range(self, raw_df: pd.DataFrame) -> None:
+        assert (int(raw_df["age"].min()), int(raw_df["age"].max())) == AGE_RANGE
+
     def test_duration_positive(self, raw_df: pd.DataFrame) -> None:
         assert (raw_df["duration"] > 0).all(), "duration deve ser > 0"
 
     def test_duration_numeric_and_finite(self, raw_df: pd.DataFrame) -> None:
         assert pd.api.types.is_numeric_dtype(raw_df["duration"])
         assert np.all(np.isfinite(raw_df["duration"]))
+
+    def test_observed_duration_range(self, raw_df: pd.DataFrame) -> None:
+        observed = (int(raw_df["duration"].min()), int(raw_df["duration"].max()))
+        assert observed == DURATION_RANGE
 
     def test_marital_categories(self, raw_df: pd.DataFrame) -> None:
         assert set(raw_df["marital"].unique()) == set(MARITAL_CATEGORIES)

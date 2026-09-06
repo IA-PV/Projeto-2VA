@@ -57,11 +57,11 @@ MARITAL_CATEGORIES: tuple[str, ...] = ("divorced", "married", "single")
 TARGET_CATEGORIES: frozenset[str] = frozenset({"no", "yes"})
 """Valores válidos do alvo."""
 
-AGE_RANGE: tuple[int, int] = (18, 95)
-"""Faixa observada de age na versão congelada (teste de identidade)."""
+AGE_RANGE: tuple[int, int] = (19, 87)
+"""Faixa observada de age na amostra reduzida congelada."""
 
-DURATION_RANGE: tuple[int, int] = (0, 4_918)
-"""Faixa observada de duration (limite superior liberal para identidade)."""
+DURATION_RANGE: tuple[int, int] = (4, 3_025)
+"""Faixa observada de duration na amostra reduzida congelada."""
 
 # ──────────────────────────────────────────────
 #  Divisão treino/teste
