@@ -74,7 +74,7 @@ def validate_pipeline(config: ExperimentConfig | None = None) -> bool:
     # Ajuste transacional do modelo em memória
     model = MixedNaiveBayes(alpha=cfg.laplace_alpha).fit(split.X_train, split.y_train)
     params = model.get_fitted_parameters()
-    if not params or "age" not in params or "duration" not in params or "marital" not in params:
+    if not params or "age" not in params or "campaign" not in params or "loan" not in params:
         raise ValueError("Parâmetros do modelo vazios ou incompletos após ajuste.")
 
     return True

@@ -1,14 +1,14 @@
 {
-  "executed_at_utc": "2026-09-06T03:04:40.898835+00:00",
-  "python_version": "3.12.10",
+  "executed_at_utc": "2026-09-06T20:09:55.231277+00:00",
+  "python_version": "3.13.7",
   "platform": "Windows-11-10.0.26200-SP0",
   "dataset_sha256": "dc8d576e9bda0f41ee891251bd84bab9a39ce576cba715aac08adc2374a01fde",
   "random_state": 42,
   "test_size": 0.2,
   "features": [
     "age",
-    "duration",
-    "marital"
+    "campaign",
+    "loan"
   ],
   "target_mapping": {
     "no": 0,
@@ -17,7 +17,7 @@
   "laplace_alpha": 1.0,
   "distributions": {
     "age": "gaussian",
-    "duration": "gamma",
-    "marital": "categorical_laplace"
+    "campaign": "gamma",
+    "loan": "categorical_laplace"
   }
 }

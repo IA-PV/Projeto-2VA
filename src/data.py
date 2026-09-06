@@ -32,7 +32,7 @@ from src.config import (
     EXPECTED_ROWS,
     EXPECTED_SHA256,
     FEATURE_COLUMNS,
-    MARITAL_CATEGORIES,
+    LOAN_CATEGORIES,
     RANDOM_STATE,
     SPLIT_REPORT_PATH,
     TARGET_CATEGORIES,
@@ -199,30 +199,30 @@ def validate_raw_data(
                 f"{dict(cols_with_nulls)}"
             )
 
-    # ── 7. age e duration são numéricos e finitos ──
-    for col in ["age", "duration"]:
+    # ── 7. age e campaign são numéricos e finitos ──
+    for col in ["age", "campaign"]:
         if col in df.columns:
             if not pd.api.types.is_numeric_dtype(df[col]):
                 errors.append(f"[V07] Coluna '{col}' não é numérica.")
             elif not np.all(np.isfinite(df[col])):
                 errors.append(f"[V07] Coluna '{col}' contém valores não finitos.")
 
-    # ── 8. duration > 0 (requisito da Gamma) ──
-    if "duration" in df.columns and pd.api.types.is_numeric_dtype(df["duration"]):
-        non_positive = (df["duration"] <= 0).sum()
+    # ── 8. campaign > 0 (requisito da Gamma) ──
+    if "campaign" in df.columns and pd.api.types.is_numeric_dtype(df["campaign"]):
+        non_positive = (df["campaign"] <= 0).sum()
         if non_positive > 0:
             errors.append(
-                f"[V08] {non_positive} valor(es) de 'duration' ≤ 0. "
-                f"Requisito da distribuição Gamma: duration deve ser estritamente positivo."
+                f"[V08] {non_positive} valor(es) de 'campaign' ≤ 0. "
+                f"Requisito da distribuição Gamma: campaign deve ser estritamente positivo."
             )
 
-    # ── 9. Categorias de marital são as três esperadas ──
-    if "marital" in df.columns:
-        actual_cats = set(df["marital"].unique())
-        if actual_cats != set(MARITAL_CATEGORIES):
+    # ── 9. Categorias de loan são as duas esperadas ──
+    if "loan" in df.columns:
+        actual_cats = set(df["loan"].unique())
+        if actual_cats != set(LOAN_CATEGORIES):
             errors.append(
-                f"[V09] Categorias de 'marital' inesperadas.\n"
-                f"  Esperado: {sorted(MARITAL_CATEGORIES)}\n"
+                f"[V09] Categorias de 'loan' inesperadas.\n"
+                f"  Esperado: {sorted(LOAN_CATEGORIES)}\n"
                 f"  Obtido:   {sorted(str(x) for x in actual_cats)}"
             )
 

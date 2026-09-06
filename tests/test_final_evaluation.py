@@ -46,19 +46,19 @@ def test_one_class_and_no_positive_flag(truth, prediction):
 
 
 def test_error_groups_empty_ties_alignment_and_reference_counts():
-    X = pd.DataFrame({"age": [20, 40, 60, 80], "duration": [100, 900, 500, 1000],
-                      "marital": ["single", "married", "divorced", "single"]}, index=[7, 3, 9, 1])
+    X = pd.DataFrame({"age": [20, 40, 60, 80], "campaign": [1, 9, 5, 10],
+                      "loan": ["no", "yes", "no", "no"]}, index=[7, 3, 9, 1])
     y = pd.Series([0, 0, 1, 1], index=X.index)
-    kwargs = {"duration_boundary": 800, "long_duration_threshold": 950}
+    kwargs = {"campaign_boundary": 3.0, "long_campaign_threshold": 9.5}
     groups = build_error_groups(X, y, [0, 0, 0, 1], **kwargs).set_index("group")
     assert list(groups.index) == ["VN", "FP", "FN", "VP"]
     assert groups.loc["VN", "age_mean"] == 30
-    assert groups.loc["VN", "marital_mode"] == "married | single"
+    assert groups.loc["VN", "loan_mode"] == "no | yes"
     assert groups.loc["FP", "n"] == 0
-    assert pd.isna(groups.loc["FP", "duration_mean"])
-    assert pd.isna(groups.loc["FP", "duration_below_boundary_fraction"])
-    assert groups.loc["FN", "duration_below_boundary_n"] == 1
-    assert groups.loc["VP", "duration_above_train_q95_n"] == 1
+    assert pd.isna(groups.loc["FP", "campaign_mean"])
+    assert pd.isna(groups.loc["FP", "campaign_below_boundary_fraction"])
+    assert groups.loc["FN", "campaign_below_boundary_n"] == 0
+    assert groups.loc["VP", "campaign_above_train_q95_n"] == 1
     assert groups["n"].sum() == len(X)
     with pytest.raises(ValueError, match="Índice"):
         build_error_groups(X, y.iloc[::-1], [0, 0, 0, 1], **kwargs)
@@ -71,7 +71,7 @@ def synthetic_runner(tmp_path, monkeypatch):
     """Spy com tamanhos do contrato; nenhum dado real é consultado."""
     monkeypatch.setattr(runner, "ROOT", tmp_path)
     X = pd.DataFrame({"age": np.tile([20, 40, 60], 1507),
-                      "duration": np.arange(1, 4522), "marital": "single"})
+                      "campaign": np.tile([1, 2, 3], 1507), "loan": "no"})
     y_train = pd.Series([0] * 3199 + [1] * 417, index=X.index[:3616])
     y_test = pd.Series([0] * 801 + [1] * 104, index=X.index[3616:])
     split = DataSplit(X.iloc[:3616], X.iloc[3616:], y_train, y_test)
@@ -81,14 +81,14 @@ def synthetic_runner(tmp_path, monkeypatch):
     monkeypatch.setattr(runner, "make_stratified_split", lambda *a: split)
     events = []
     params = {"priors": {"0": 3199 / 3616, "1": 417 / 3616},
-              "duration": {str(c): {"shape": 2.0, "scale": 100.0} for c in (0, 1)}}
+              "campaign": {str(c): {"shape": 2.0, "scale": 1.0} for c in (0, 1)}}
 
     def prerequisites():
         events.append("prerequisites")
         runner._write_json(tmp_path / runner.METRICS / "distribution_parameters.json", {
-            "priors": params["priors"], "duration": {
-                "class_0": params["duration"]["0"], "class_1": params["duration"]["1"],
-                "map_boundaries": [800.0]}})
+            "priors": params["priors"], "campaign": {
+                "class_0": params["campaign"]["0"], "class_1": params["campaign"]["1"],
+                "map_boundaries": [], "likelihood_boundaries": [3.0]}})
         return {"tests": {"output": "fixture passed"}, "univariate": {"completed_at_utc": runner._utc_now()}}
 
     class Spy:

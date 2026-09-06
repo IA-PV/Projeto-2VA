@@ -2,7 +2,7 @@
 
 Responsabilidades
 -----------------
-- Gerar figuras reprodutíveis para age, duration e marital.
+- Gerar figuras reprodutíveis para age, campaign e loan.
 - Seguir o padrão visual definido na especificação.
 
 Não deve
@@ -201,23 +201,23 @@ def plot_age_analysis(
 
 
 # ──────────────────────────────────────────────
-#  Figura: duration
+#  Figura: campaign
 # ──────────────────────────────────────────────
 
 
-def plot_duration_analysis(
+def plot_campaign_analysis(
     params_0: GammaParams,
     params_1: GammaParams,
     priors: dict[int, float],
-    train_duration_0: np.ndarray,
-    train_duration_1: np.ndarray,
+    train_campaign_0: np.ndarray,
+    train_campaign_1: np.ndarray,
     likelihood_boundaries: list[float],
     map_boundaries: list[float],
     save_path: Path,
     *,
     n_points: int = 1_000,
 ) -> Path:
-    """Gera a figura de análise de duration.
+    """Gera a figura de análise de campaign.
 
     Painel superior: histogramas normalizados + densidades Gamma.
     Painel inferior: curvas ponderadas + regiões de decisão.
@@ -229,7 +229,7 @@ def plot_duration_analysis(
         Parâmetros Gamma por classe.
     priors : dict[int, float]
         Priors do treino.
-    train_duration_0, train_duration_1 : np.ndarray
+    train_campaign_0, train_campaign_1 : np.ndarray
         Dados de treino por classe (para histogramas).
     likelihood_boundaries : list[float]
         Fronteiras onde Λ(x) = 1.
@@ -247,12 +247,12 @@ def plot_duration_analysis(
     """
     _setup_style()
 
-    all_durations = np.concatenate([train_duration_0, train_duration_1])
-    observed_min = float(all_durations.min())
-    p99 = float(np.percentile(all_durations, 99))
-    total_max = float(all_durations.max())
+    all_campaigns = np.concatenate([train_campaign_0, train_campaign_1])
+    observed_min = float(all_campaigns.min())
+    p99 = float(np.percentile(all_campaigns, 99))
+    total_max = float(all_campaigns.max())
 
-    x_min = observed_min
+    x_min = max(observed_min * 0.5, 0.1)  # Gamma > 0
     x_max_plot = p99 * 1.15
     x = np.linspace(x_min, x_max_plot, n_points)
 
@@ -262,20 +262,20 @@ def plot_duration_analysis(
     weighted_1 = pdf_1 * priors[1]
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
-    fig.suptitle("Análise Bayesiana Univariada — duration", fontweight="bold")
+    fig.suptitle("Análise Bayesiana Univariada — campaign", fontweight="bold")
 
     # ── Painel superior: histogramas + densidades ──
-    bins = np.linspace(x_min, x_max_plot, 60)
-    ax1.hist(train_duration_0, bins=bins, density=True, alpha=0.25,
+    bins = np.linspace(x_min, x_max_plot, 40)
+    ax1.hist(train_campaign_0, bins=bins, density=True, alpha=0.25,
              color=_COLORS[0], label=f"{_LABELS[0]} (hist)")
-    ax1.hist(train_duration_1, bins=bins, density=True, alpha=0.25,
+    ax1.hist(train_campaign_1, bins=bins, density=True, alpha=0.25,
              color=_COLORS[1], label=f"{_LABELS[1]} (hist)")
     ax1.plot(x, pdf_0, color=_COLORS[0], linewidth=2, label=f"{_LABELS[0]} (Gamma)")
     ax1.plot(x, pdf_1, color=_COLORS[1], linewidth=2, label=f"{_LABELS[1]} (Gamma)")
 
     for b in likelihood_boundaries:
         if b <= x_max_plot:
-            ax1.axvline(b, label=f"Λ=1 ({b:.1f}s)", **_BOUNDARY_STYLES["likelihood"])
+            ax1.axvline(b, label=f"Λ=1 ({b:.1f})", **_BOUNDARY_STYLES["likelihood"])
 
     ax1.set_ylabel("Densidade")
     ax1.set_title("Densidades Condicionais (Gamma) e Histogramas")
@@ -283,8 +283,8 @@ def plot_duration_analysis(
 
     # Nota do intervalo observado e do recorte visual da cauda
     ax1.annotate(
-        f"Intervalo observado: [{observed_min:.0f}, {total_max:.0f}]s — "
-        f"Exibindo até 1,15 × P99 ≈ {x_max_plot:.0f}s",
+        f"Intervalo observado: [{observed_min:.0f}, {total_max:.0f}] contatos — "
+        f"Exibindo até 1,15 × P99 ≈ {x_max_plot:.0f}",
         xy=(0.02, 0.95), xycoords="axes fraction",
         ha="left", va="top", fontsize=8,
         bbox=dict(boxstyle="round,pad=0.3", fc="lightyellow", alpha=0.8),
@@ -308,9 +308,9 @@ def plot_duration_analysis(
 
     for b in map_boundaries:
         if b <= x_max_plot:
-            ax2.axvline(b, label=f"MAP ({b:.1f}s)", **_BOUNDARY_STYLES["map"])
+            ax2.axvline(b, label=f"MAP ({b:.1f})", **_BOUNDARY_STYLES["map"])
 
-    ax2.set_xlabel("duration (segundos)")
+    ax2.set_xlabel("campaign (nº de contatos)")
     ax2.set_ylabel("$p(x \\mid Y=c) \\cdot P(Y=c)$")
     ax2.set_title("Curvas Ponderadas e Regiões de Decisão MAP")
     ax2.legend(loc="upper right", fontsize=8)
@@ -325,17 +325,17 @@ def plot_duration_analysis(
 
 
 # ──────────────────────────────────────────────
-#  Figura: marital
+#  Figura: loan
 # ──────────────────────────────────────────────
 
 
-def plot_marital_analysis(
+def plot_loan_analysis(
     probs_0: dict[str, float],
     probs_1: dict[str, float],
     priors: dict[int, float],
     save_path: Path,
 ) -> Path:
-    """Gera a figura de análise de marital.
+    """Gera a figura de análise de loan.
 
     Painel superior: barras agrupadas P(a_k|Y=c) por categoria e classe.
     Painel inferior: log-Λ por categoria com limiar log(P(Y=0)/P(Y=1)).
@@ -365,7 +365,7 @@ def plot_marital_analysis(
     log_threshold = np.log(priors[0] / priors[1])
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 7))
-    fig.suptitle("Análise Bayesiana Univariada — marital", fontweight="bold")
+    fig.suptitle("Análise Bayesiana Univariada — loan", fontweight="bold")
 
     # ── Painel superior: barras agrupadas ──
     x_pos = np.arange(len(categories))

@@ -9,14 +9,14 @@ import pytest
 from scipy import stats
 from scipy.special import digamma
 
-from src.config import MARITAL_CATEGORIES, VARIANCE_FLOOR
+from src.config import LOAN_CATEGORIES, VARIANCE_FLOOR
 from src.distributions import (
     ExponentialParams,
     GammaParams,
     GaussianParams,
     aic,
     categorical_logpmf,
-    compare_duration_distributions,
+    compare_campaign_distributions,
     exponential_logpdf,
     fit_categorical,
     fit_class_priors,
@@ -238,7 +238,7 @@ def test_categorical_rejects_invalid_training(values):
 
 
 def test_categorical_rejects_unknown_during_evaluation():
-    probs = fit_categorical(pd.Series(["single"]))
+    probs = fit_categorical(pd.Series(["no"]))
     with pytest.raises(ValueError, match="Categorias desconhecidas.*unknown"):
         categorical_logpmf(pd.Series(["unknown"]), probs)
 
@@ -246,7 +246,7 @@ def test_categorical_rejects_unknown_during_evaluation():
 @pytest.mark.parametrize("alpha", [0, -1, np.nan, np.inf])
 def test_invalid_laplace_alpha(alpha):
     with pytest.raises(ValueError, match="alpha"):
-        fit_categorical(pd.Series(["single"]), alpha=alpha)
+        fit_categorical(pd.Series(["no"]), alpha=alpha)
 
 
 @pytest.mark.parametrize("probabilities", [
@@ -276,10 +276,10 @@ def test_aic_rejects_invalid_parameter_counts(q):
 @pytest.mark.regression
 @pytest.mark.parametrize(
     "c,count,mean,std,shape,scale,counts,exp_aic,gamma_aic,exp_ks,gamma_ks", [
-        (0, 3199, 40.87183, 10.06207, 1.52854, 147.44781,
-         [366, 2003, 830], 41062.98, 40755.66, 0.1172, 0.0457),
-        (1, 417, 42.36451, 13.06510, 2.25276, 247.81951,
-         [64, 220, 133], 6110.93, 5986.05, 0.1802, 0.0525),
+        (0, 3199, 40.87183, 10.06207, 1.71065, 1.67423,
+         [2674, 525], 13132.14, 12661.02, 0.2947, 0.2270),
+        (1, 417, 42.36451, 13.06510, 2.16802, 1.04639,
+         [383, 34], 1519.18, 1404.33, 0.3565, 0.2667),
     ],
 )
 def test_training_references(
@@ -296,19 +296,19 @@ def test_training_references(
     age = fit_gaussian_mle(train["age"].to_numpy())
     assert age.mean == pytest.approx(mean, abs=1e-5, rel=0)
     assert np.sqrt(age.variance) == pytest.approx(std, abs=1e-5, rel=0)
-    duration = train["duration"].to_numpy()
-    gamma = fit_gamma_mle(duration)
+    campaign = train["campaign"].to_numpy()
+    gamma = fit_gamma_mle(campaign)
     assert gamma.shape == pytest.approx(shape, abs=1e-5, rel=0)
     assert gamma.scale == pytest.approx(scale, abs=1e-5, rel=0)
-    assert gamma.shape * gamma.scale == pytest.approx(duration.mean())
+    assert gamma.shape * gamma.scale == pytest.approx(campaign.mean())
     assert np.isfinite(gaussian_logpdf(train["age"].to_numpy(), age)).all()
-    assert np.isfinite(gamma_logpdf(duration, gamma)).all()
-    observed = train["marital"].value_counts().reindex(MARITAL_CATEGORIES)
+    assert np.isfinite(gamma_logpdf(campaign, gamma)).all()
+    observed = train["loan"].value_counts().reindex(LOAN_CATEGORIES)
     assert observed.tolist() == counts
-    probs = fit_categorical(train["marital"])
-    assert list(probs.values()) == pytest.approx([(n + 1) / (count + 3) for n in counts])
+    probs = fit_categorical(train["loan"])
+    assert list(probs.values()) == pytest.approx([(n + 1) / (count + 2) for n in counts])
     assert np.isclose(sum(probs.values()), 1)
-    diagnostic = compare_duration_distributions(duration).set_index("distribution")
+    diagnostic = compare_campaign_distributions(campaign).set_index("distribution")
     np.testing.assert_allclose(diagnostic["aic"], [exp_aic, gamma_aic], atol=0.02, rtol=0)
     np.testing.assert_allclose(diagnostic["ks"], [exp_ks, gamma_ks], atol=1e-4, rtol=0)
     assert diagnostic["q"].tolist() == [1, 2]

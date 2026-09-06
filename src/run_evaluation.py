@@ -110,14 +110,16 @@ def run(*, reason: str | None = None, changed_files: list[str] | None = None) ->
     for c in (0, 1):
         np.testing.assert_allclose(univariate["priors"][str(c)], parameters["priors"][str(c)])
         for key in ("shape", "scale"):
-            np.testing.assert_allclose(univariate["duration"][f"class_{c}"][key],
-                                       parameters["duration"][str(c)][key])
-    boundaries = univariate["duration"]["map_boundaries"]
-    if len(boundaries) != 1:
-        raise ValueError("A análise congelada deve fornecer uma fronteira MAP de duração.")
+            np.testing.assert_allclose(univariate["campaign"][f"class_{c}"][key],
+                                       parameters["campaign"][str(c)][key])
+    boundaries = univariate["campaign"]["map_boundaries"]
+    if not boundaries:
+        boundaries = univariate["campaign"]["likelihood_boundaries"]
+    if len(boundaries) < 1:
+        raise ValueError("A análise congelada deve fornecer pelo menos uma fronteira para campaign.")
     references = {
-        "duration_map_boundary_train": float(boundaries[0]),
-        "duration_q95_train": float(split.X_train["duration"].quantile(0.95)),
+        "campaign_map_boundary_train": float(boundaries[-1]),
+        "campaign_q95_train": float(split.X_train["campaign"].quantile(0.95)),
         "interpretation": "Referências descritivas do treino; não alteram a regra MAP conjunta.",
     }
     checklist = {
@@ -165,8 +167,8 @@ def run(*, reason: str | None = None, changed_files: list[str] | None = None) ->
         cm = np.array([[components["tn"], components["fp"]],
                        [components["fn"], components["tp"]]])
         groups = build_error_groups(split.X_test, split.y_test, prediction,
-                                    duration_boundary=references["duration_map_boundary_train"],
-                                    long_duration_threshold=references["duration_q95_train"])
+                                    campaign_boundary=references["campaign_map_boundary_train"],
+                                    long_campaign_threshold=references["campaign_q95_train"])
         pd.DataFrame(cm, index=[0, 1], columns=["predicted_0", "predicted_1"]).to_csv(
             ROOT / METRICS / "confusion_matrix.csv", index_label="actual_class")
         groups.to_csv(ROOT / METRICS / "error_groups.csv", index=False, float_format="%.10f")

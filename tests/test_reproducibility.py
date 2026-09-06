@@ -49,7 +49,7 @@ class TestExperimentConfig:
         cfg = ExperimentConfig()
         assert cfg.data_path == Path("data/raw/bank.csv")
         assert cfg.output_dir == Path("reports")
-        assert cfg.feature_columns == ("age", "duration", "marital")
+        assert cfg.feature_columns == ("age", "campaign", "loan")
         assert cfg.target_column == TARGET_COLUMN
         assert cfg.test_size == pytest.approx(TEST_SIZE)
         assert cfg.random_state == RANDOM_STATE

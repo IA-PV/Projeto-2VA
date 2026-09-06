@@ -27,7 +27,7 @@ from src.evaluation import (
     compute_majority_baseline,
     compute_metrics,
     extract_confusion_components,
-    summarize_age_by_marital,
+    summarize_age_by_loan,
 )
 
 
@@ -158,22 +158,22 @@ class TestEvaluationRobustnessAndEdgeCases:
             extract_confusion_components(np.zeros((3, 3)))
 
 
-def test_summarize_age_by_marital_uses_within_class_groups() -> None:
+def test_summarize_age_by_loan_uses_within_class_groups() -> None:
     """O diagnóstico preserva classes e categorias sem misturar observações."""
     X = pd.DataFrame(
         {
             "age": [20, 40, 60, 30, 50],
-            "duration": [100, 200, 300, 400, 500],
-            "marital": ["single", "married", "married", "single", "divorced"],
+            "campaign": [1, 2, 3, 4, 5],
+            "loan": ["no", "yes", "yes", "no", "yes"],
         },
         index=[10, 20, 30, 40, 50],
     )
     y = pd.Series([0, 0, 0, 1, 1], index=X.index)
 
-    result = summarize_age_by_marital(X, y).set_index(["actual_class", "marital"])
+    result = summarize_age_by_loan(X, y).set_index(["actual_class", "loan"])
 
-    assert result.loc[(0, "married"), "n"] == 2
-    assert result.loc[(0, "married"), "age_mean"] == pytest.approx(50.0)
-    assert result.loc[(0, "single"), "age_median"] == pytest.approx(20.0)
-    assert result.loc[(1, "divorced"), "age_mean"] == pytest.approx(50.0)
-    assert result.loc[(1, "single"), "age_mean"] == pytest.approx(30.0)
+    assert result.loc[(0, "yes"), "n"] == 2
+    assert result.loc[(0, "yes"), "age_mean"] == pytest.approx(50.0)
+    assert result.loc[(0, "no"), "age_median"] == pytest.approx(20.0)
+    assert result.loc[(1, "yes"), "age_mean"] == pytest.approx(50.0)
+    assert result.loc[(1, "no"), "age_mean"] == pytest.approx(30.0)

@@ -22,12 +22,12 @@ import pytest
 
 from src.config import (
     AGE_RANGE,
-    DURATION_RANGE,
+    CAMPAIGN_RANGE,
     EXPECTED_COLUMNS,
     EXPECTED_ROWS,
     EXPECTED_SHA256,
     FEATURE_COLUMNS,
-    MARITAL_CATEGORIES,
+    LOAN_CATEGORIES,
     RANDOM_STATE,
     TARGET_COLUMN,
     TARGET_MAPPING,
@@ -44,9 +44,9 @@ from src.data import (
 )
 
 
-# ════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════
 #  Carregamento
-# ════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════
 
 
 @pytest.mark.regression
@@ -70,9 +70,9 @@ class TestLoadBankData:
             load_bank_data(tmp_path / "inexistente.csv")
 
 
-# ════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════
 #  Hash SHA-256
-# ════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════
 
 
 @pytest.mark.regression
@@ -86,9 +86,9 @@ class TestHash:
         )
 
 
-# ════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════
 #  Validações de domínio (arquivo real)
-# ════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════
 
 
 @pytest.mark.regression
@@ -112,19 +112,19 @@ class TestValidateRawData:
     def test_observed_age_range(self, raw_df: pd.DataFrame) -> None:
         assert (int(raw_df["age"].min()), int(raw_df["age"].max())) == AGE_RANGE
 
-    def test_duration_positive(self, raw_df: pd.DataFrame) -> None:
-        assert (raw_df["duration"] > 0).all(), "duration deve ser > 0"
+    def test_campaign_positive(self, raw_df: pd.DataFrame) -> None:
+        assert (raw_df["campaign"] > 0).all(), "campaign deve ser > 0"
 
-    def test_duration_numeric_and_finite(self, raw_df: pd.DataFrame) -> None:
-        assert pd.api.types.is_numeric_dtype(raw_df["duration"])
-        assert np.all(np.isfinite(raw_df["duration"]))
+    def test_campaign_numeric_and_finite(self, raw_df: pd.DataFrame) -> None:
+        assert pd.api.types.is_numeric_dtype(raw_df["campaign"])
+        assert np.all(np.isfinite(raw_df["campaign"]))
 
-    def test_observed_duration_range(self, raw_df: pd.DataFrame) -> None:
-        observed = (int(raw_df["duration"].min()), int(raw_df["duration"].max()))
-        assert observed == DURATION_RANGE
+    def test_observed_campaign_range(self, raw_df: pd.DataFrame) -> None:
+        observed = (int(raw_df["campaign"].min()), int(raw_df["campaign"].max()))
+        assert observed == CAMPAIGN_RANGE
 
-    def test_marital_categories(self, raw_df: pd.DataFrame) -> None:
-        assert set(raw_df["marital"].unique()) == set(MARITAL_CATEGORIES)
+    def test_loan_categories(self, raw_df: pd.DataFrame) -> None:
+        assert set(raw_df["loan"].unique()) == set(LOAN_CATEGORIES)
 
     def test_target_categories(self, raw_df: pd.DataFrame) -> None:
         assert set(raw_df[TARGET_COLUMN].unique()) == {"no", "yes"}
@@ -133,9 +133,9 @@ class TestValidateRawData:
         assert raw_df.duplicated().sum() == 0
 
 
-# ════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════
 #  Validações com DataFrames inválidos
-# ════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════
 
 
 class TestValidateRejectsInvalid:
@@ -147,8 +147,8 @@ class TestValidateRejectsInvalid:
         data = {col: ["x"] * n for col in EXPECTED_COLUMNS}
         # Sobrescreve as colunas usadas pelo modelo
         data["age"] = list(range(30, 30 + n))
-        data["duration"] = list(range(1, 1 + n))
-        data["marital"] = ["married"] * (n // 3) + ["single"] * (n // 3) + ["divorced"] * (n - 2 * (n // 3))
+        data["campaign"] = list(range(1, 1 + n))
+        data["loan"] = ["no"] * (n // 2) + ["yes"] * (n - n // 2)
         data["y"] = ["no"] * (n - 521) + ["yes"] * 521
         return pd.DataFrame(data)
 
@@ -183,7 +183,7 @@ class TestValidateRejectsInvalid:
         with pytest.raises(ValueError, match=r"V05"):
             validate_raw_data(df)
 
-    @pytest.mark.parametrize("col", ["age", "duration", "marital", "y"])
+    @pytest.mark.parametrize("col", ["age", "campaign", "loan", "y"])
     def test_null_in_any_model_column_rejected(self, col: str) -> None:
         """Caso de validação: valor nulo em feature ou target é rejeitado."""
         df = self._make_valid_df()
@@ -191,17 +191,17 @@ class TestValidateRejectsInvalid:
         with pytest.raises(ValueError, match=r"V06"):
             validate_raw_data(df)
 
-    @pytest.mark.parametrize("bad_duration", [0, -1, -50])
-    def test_duration_not_positive(self, bad_duration: int) -> None:
-        """Caso de validação: duration <= 0 é rejeitada."""
+    @pytest.mark.parametrize("bad_campaign", [0, -1, -50])
+    def test_campaign_not_positive(self, bad_campaign: int) -> None:
+        """Caso de validação: campaign <= 0 é rejeitada."""
         df = self._make_valid_df()
-        df.loc[0, "duration"] = bad_duration
+        df.loc[0, "campaign"] = bad_campaign
         with pytest.raises(ValueError, match=r"V08"):
             validate_raw_data(df)
 
-    def test_unexpected_marital_value(self) -> None:
+    def test_unexpected_loan_value(self) -> None:
         df = self._make_valid_df()
-        df.loc[0, "marital"] = "widowed"
+        df.loc[0, "loan"] = "maybe"
         with pytest.raises(ValueError, match=r"V09"):
             validate_raw_data(df)
 
@@ -235,9 +235,9 @@ class TestValidateRejectsInvalid:
             validate_raw_data(df)
 
 
-# ════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════
 #  Codificação do alvo (prepare_model_frame)
-# ════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════
 
 
 @pytest.mark.regression
@@ -264,15 +264,15 @@ class TestPrepareModelFrame:
         assert (y[yes_mask] == 1).all()
 
     def test_missing_column_raises(self) -> None:
-        df = pd.DataFrame({"age": [30], "duration": [100]})
+        df = pd.DataFrame({"age": [30], "campaign": [1]})
         with pytest.raises(ValueError, match="ausentes"):
             prepare_model_frame(df)
 
     def test_unmapped_target_raises(self) -> None:
         df = pd.DataFrame({
             "age": [30],
-            "duration": [100],
-            "marital": ["single"],
+            "campaign": [1],
+            "loan": ["no"],
             "y": ["maybe"],
         })
         with pytest.raises(ValueError, match="mapeamento"):
@@ -284,9 +284,9 @@ class TestPrepareModelFrame:
         assert (y == 1).sum() == 521
 
 
-# ════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════
 #  Split estratificado
-# ════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════
 
 
 @pytest.mark.regression
@@ -347,9 +347,9 @@ class TestMakeStratifiedSplit:
             data_split.X_train = None  # type: ignore[misc]
 
 
-# ════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════
 #  Artefato de auditoria
-# ════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════
 
 
 @pytest.mark.regression

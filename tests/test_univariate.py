@@ -19,7 +19,7 @@ import pandas as pd
 import pytest
 from scipy.special import logsumexp
 
-from src.config import AGE_EXAMPLES, DURATION_EXAMPLES, MARITAL_CATEGORIES
+from src.config import AGE_EXAMPLES, CAMPAIGN_EXAMPLES, LOAN_CATEGORIES
 from src.distributions import (
     categorical_logpmf,
     fit_categorical,
@@ -366,27 +366,27 @@ class TestSmokeValuesAge:
 
 
 @pytest.mark.regression
-class TestSmokeValuesDuration:
-    """Smoke values: Λ=1 ≈315s, MAP ≈808s."""
+class TestSmokeValuesCampaign:
+    """Smoke values: Λ=1 boundaries ≈ 0.35 e ≈ 3.18; MAP não tem fronteira (prior domina)."""
 
     @pytest.fixture(autouse=True)
     def _setup(self, data_split):
         y = data_split.y_train
         X = data_split.X_train
         self.priors = fit_class_priors(y)
-        self.params_0 = fit_gamma_mle(X.loc[y == 0, "duration"].to_numpy())
-        self.params_1 = fit_gamma_mle(X.loc[y == 1, "duration"].to_numpy())
-        self.dur_max = float(X["duration"].max())
+        self.params_0 = fit_gamma_mle(X.loc[y == 0, "campaign"].to_numpy(dtype=float))
+        self.params_1 = fit_gamma_mle(X.loc[y == 1, "campaign"].to_numpy(dtype=float))
+        self.camp_max = float(X["campaign"].max())
 
     def test_likelihood_boundary(self):
         def diff(x):
             v = np.array([x])
             return float(gamma_logpdf(v, self.params_1)[0] - gamma_logpdf(v, self.params_0)[0])
 
-        boundaries = find_continuous_boundaries(diff, 1.0, self.dur_max * 1.5)
-        assert len(boundaries) >= 1
-        closest = min(boundaries, key=lambda b: abs(b - 315))
-        assert closest == pytest.approx(315, abs=20)
+        boundaries = find_continuous_boundaries(diff, 0.1, self.camp_max * 1.5)
+        assert len(boundaries) == 2
+        assert boundaries[0] == pytest.approx(0.35, abs=0.1)
+        assert boundaries[1] == pytest.approx(3.18, abs=0.2)
 
     def test_map_boundary(self):
         def diff(x):
@@ -395,50 +395,47 @@ class TestSmokeValuesDuration:
             s0 = np.log(self.priors[0]) + float(gamma_logpdf(v, self.params_0)[0])
             return s1 - s0
 
-        boundaries = find_continuous_boundaries(diff, 1.0, self.dur_max * 1.5)
-        assert len(boundaries) >= 1
-        closest = min(boundaries, key=lambda b: abs(b - 808))
-        assert closest == pytest.approx(808, abs=30)
+        boundaries = find_continuous_boundaries(diff, 0.1, self.camp_max * 1.5)
+        # Prior domina completamente: não há fronteira MAP em campaign
+        assert len(boundaries) == 0
 
     def test_examples_table(self):
-        values = np.array(DURATION_EXAMPLES, dtype=float)
+        values = np.array(CAMPAIGN_EXAMPLES, dtype=float)
         log_0 = gamma_logpdf(values, self.params_0)
         log_1 = gamma_logpdf(values, self.params_1)
-        result = analyze_univariate("duration", values, self.priors, log_0, log_1)
+        result = analyze_univariate("campaign", values, self.priors, log_0, log_1)
         np.testing.assert_allclose(result.posterior_class_0 + result.posterior_class_1,
                                    np.ones(len(values)), atol=1e-14)
-        # duration=100 should be class 0, duration=1000 should be class 1
-        assert result.predictions[0] == 0, "duration=100 deve ser classe 0"
-        assert result.predictions[3] == 1, "duration=1000 deve ser classe 1"
+        # Todos os exemplos devem predizer classe 0 devido à dominância da prior
+        assert np.all(result.predictions == 0)
 
 
 @pytest.mark.regression
-class TestSmokeValuesMarital:
-    """Nenhuma categoria vence a prior → tudo classe 0."""
+class TestSmokeValuesLoan:
+    """Nenhuma categoria de loan supera o odds ratio da prior → tudo classe 0."""
 
     @pytest.fixture(autouse=True)
     def _setup(self, data_split):
         y = data_split.y_train
         X = data_split.X_train
         self.priors = fit_class_priors(y)
-        self.probs_0 = fit_categorical(X.loc[y == 0, "marital"])
-        self.probs_1 = fit_categorical(X.loc[y == 1, "marital"])
+        self.probs_0 = fit_categorical(X.loc[y == 0, "loan"])
+        self.probs_1 = fit_categorical(X.loc[y == 1, "loan"])
 
-    def test_divorced_and_single_have_lr_above_one(self):
-        """divorced e single devem ter Λ > 1."""
-        for cat in ("divorced", "single"):
-            lr = self.probs_1[cat] / self.probs_0[cat]
-            assert lr > 1, f"{cat}: Λ={lr:.4f} deveria ser > 1"
+    def test_no_has_lr_above_one(self):
+        """'no' loan deve ter Λ > 1 (ausência de empréstimo favorece adesão ligeiramente)."""
+        lr = self.probs_1["no"] / self.probs_0["no"]
+        assert lr > 1, f"no: Λ={lr:.4f} deveria ser > 1"
 
-    def test_married_has_lr_below_one(self):
-        """married deve ter Λ < 1."""
-        lr = self.probs_1["married"] / self.probs_0["married"]
-        assert lr < 1, f"married: Λ={lr:.4f} deveria ser < 1"
+    def test_yes_has_lr_below_one(self):
+        """'yes' loan deve ter Λ < 1."""
+        lr = self.probs_1["yes"] / self.probs_0["yes"]
+        assert lr < 1, f"yes: Λ={lr:.4f} deveria ser < 1"
 
     def test_no_category_exceeds_prior_odds(self):
         """Nenhuma Λ deve superar P(Y=0)/P(Y=1)."""
         prior_odds = self.priors[0] / self.priors[1]
-        for cat in MARITAL_CATEGORIES:
+        for cat in LOAN_CATEGORIES:
             lr = self.probs_1[cat] / self.probs_0[cat]
             assert lr < prior_odds, (
                 f"{cat}: Λ={lr:.4f} >= prior_odds={prior_odds:.4f}"
@@ -450,15 +447,14 @@ class TestSmokeValuesMarital:
             assert dec == 0, f"{cat} deveria ser classe 0, obteve {dec}"
 
     def test_examples_table(self):
-        cats = list(MARITAL_CATEGORIES)
+        cats = list(LOAN_CATEGORIES)
         log_0 = categorical_logpmf(pd.Series(cats), self.probs_0)
         log_1 = categorical_logpmf(pd.Series(cats), self.probs_1)
-        result = analyze_univariate("marital", np.array(cats), self.priors, log_0, log_1)
+        result = analyze_univariate("loan", np.array(cats), self.priors, log_0, log_1)
         np.testing.assert_allclose(
             result.posterior_class_0 + result.posterior_class_1,
             np.ones(len(cats)), atol=1e-14,
         )
-        # Tudo classe 0
         assert np.all(result.predictions == 0)
 
 
@@ -536,25 +532,25 @@ class TestIntegration:
         assert result_age.feature == "age"
         assert len(result_age.values) == 4
 
-        # Duration
-        dur_p0 = fit_gamma_mle(X.loc[y == 0, "duration"].to_numpy())
-        dur_p1 = fit_gamma_mle(X.loc[y == 1, "duration"].to_numpy())
-        dur_vals = np.array(DURATION_EXAMPLES, dtype=float)
-        result_dur = analyze_univariate(
-            "duration", dur_vals, priors,
-            gamma_logpdf(dur_vals, dur_p0),
-            gamma_logpdf(dur_vals, dur_p1),
+        # Campaign
+        camp_p0 = fit_gamma_mle(X.loc[y == 0, "campaign"].to_numpy(dtype=float))
+        camp_p1 = fit_gamma_mle(X.loc[y == 1, "campaign"].to_numpy(dtype=float))
+        camp_vals = np.array(CAMPAIGN_EXAMPLES, dtype=float)
+        result_camp = analyze_univariate(
+            "campaign", camp_vals, priors,
+            gamma_logpdf(camp_vals, camp_p0),
+            gamma_logpdf(camp_vals, camp_p1),
         )
-        assert result_dur.feature == "duration"
+        assert result_camp.feature == "campaign"
 
-        # Marital
-        probs_0 = fit_categorical(X.loc[y == 0, "marital"])
-        probs_1 = fit_categorical(X.loc[y == 1, "marital"])
-        cats = list(MARITAL_CATEGORIES)
-        result_mar = analyze_univariate(
-            "marital", np.array(cats), priors,
+        # Loan
+        probs_0 = fit_categorical(X.loc[y == 0, "loan"])
+        probs_1 = fit_categorical(X.loc[y == 1, "loan"])
+        cats = list(LOAN_CATEGORIES)
+        result_loan = analyze_univariate(
+            "loan", np.array(cats), priors,
             categorical_logpmf(pd.Series(cats), probs_0),
             categorical_logpmf(pd.Series(cats), probs_1),
         )
-        assert result_mar.feature == "marital"
-        assert len(result_mar.values) == 3
+        assert result_loan.feature == "loan"
+        assert len(result_loan.values) == 2

@@ -174,7 +174,7 @@ def analyze_univariate(
     Parameters
     ----------
     feature : str
-        Nome do atributo ('age', 'duration', 'marital').
+        Name do atributo ('age', 'campaign', 'loan').
     values : np.ndarray
         Pontos de avaliação.
     priors : dict[int, float]

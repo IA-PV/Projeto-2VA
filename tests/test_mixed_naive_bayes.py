@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 from scipy import stats
 
-from src.config import EXPECTED_SHA256, MARITAL_CATEGORIES, RANDOM_STATE, TEST_SIZE
+from src.config import EXPECTED_SHA256, LOAN_CATEGORIES, RANDOM_STATE, TEST_SIZE
 from src.mixed_naive_bayes import MixedNaiveBayes
 from src import run_experiment
 
@@ -18,8 +18,8 @@ from src import run_experiment
 def training():
     X = pd.DataFrame({
         "age": [20., 30., 40., 35., 45., 55., 65.],
-        "duration": [10., 20., 40., 30., 60., 90., 150.],
-        "marital": ["single", "single", "married", "married", "divorced", "single", "married"],
+        "campaign": [1., 2., 4., 3., 6., 9., 15.],
+        "loan": ["no", "no", "no", "yes", "no", "no", "yes"],
     }, index=[9, 3, 8, 1, 7, 2, 6])
     return X, pd.Series([0, 0, 0, 1, 1, 1, 1], index=X.index)
 
@@ -41,10 +41,10 @@ def test_manual_joint_and_posterior(training, fitted):
             variance = sum((value - mean) ** 2 for value in group.age) / len(group)
             normal = math.exp(-(row.age - mean) ** 2 / (2 * variance))
             normal /= math.sqrt(2 * math.pi * variance)
-            gamma = fitted.duration_params_[c]
-            density = row.duration ** (gamma.shape - 1) * math.exp(-row.duration / gamma.scale)
+            gamma = fitted.campaign_params_[c]
+            density = row.campaign ** (gamma.shape - 1) * math.exp(-row.campaign / gamma.scale)
             density /= math.gamma(gamma.shape) * gamma.scale ** gamma.shape
-            categorical = (sum(group.marital == row.marital) + 1) / (len(group) + 3)
+            categorical = (sum(group.loan == row.loan) + 1) / (len(group) + 2)
             weights.append(len(group) / len(X) * normal * density * categorical)
         expected.append(weights)
     expected = np.asarray(expected)
@@ -54,8 +54,8 @@ def test_manual_joint_and_posterior(training, fitted):
     np.testing.assert_allclose(fitted.predict_log_proba(query), np.log(posterior))
     np.testing.assert_array_equal(fitted.predict(query), np.argmax(posterior, axis=1))
     assert fitted.class_count_ == {0: 3, 1: 4}
-    # Categoria ausente da classe 0 recebe Laplace no domínio completo K=3.
-    assert np.exp(fitted.marital_log_prob_[0]["divorced"]) == pytest.approx(1 / 6)
+    # Categoria ausente da classe 0 recebe Laplace no domínio completo K=2.
+    assert np.exp(fitted.loan_log_prob_[0]["yes"]) == pytest.approx(1 / 5)
 
 
 def test_custom_hyperparameters_and_zero_variance(training):
@@ -64,7 +64,7 @@ def test_custom_hyperparameters_and_zero_variance(training):
     model = MixedNaiveBayes(alpha=2., variance_floor=1e-5)
     assert model.fit(X, y) is model
     assert model.age_params_[0].variance == 1e-5
-    assert np.exp(model.marital_log_prob_[0]["divorced"]) == pytest.approx(2 / 9)
+    assert np.exp(model.loan_log_prob_[0]["yes"]) == pytest.approx(2 / 7)
 
 
 @pytest.mark.parametrize("name", ["alpha", "variance_floor"])
@@ -89,17 +89,17 @@ def test_requires_fit(method, training):
     lambda X: X.to_numpy(),
     lambda X: X.drop(columns="age"),
     lambda X: X.assign(extra=1),
-    lambda X: X.set_axis(["age", "age", "marital"], axis=1),
+    lambda X: X.set_axis(["age", "age", "loan"], axis=1),
     lambda X: X.assign(age=np.nan),
-    lambda X: X.assign(duration=np.inf),
+    lambda X: X.assign(campaign=np.inf),
     lambda X: X.assign(age=-np.inf),
     lambda X: X.assign(age="30"),
     lambda X: X.assign(age=30 + 1j),
     lambda X: X.assign(age=True),
-    lambda X: X.assign(duration=0),
-    lambda X: X.assign(duration=-1),
-    lambda X: X.assign(marital="unknown"),
-    lambda X: X.assign(marital=None),
+    lambda X: X.assign(campaign=0),
+    lambda X: X.assign(campaign=-1),
+    lambda X: X.assign(loan="unknown"),
+    lambda X: X.assign(loan=None),
 ])
 def test_invalid_X_rejected_at_fit_and_score(invalid, training, fitted):
     X, y = training
@@ -138,7 +138,7 @@ def test_empty_fit_rejected_but_empty_prediction_supported(training, fitted):
 def test_transactional_fit_and_refit(training, fitted):
     X, y = training
     bad = X.copy()
-    bad.loc[y == 1, "duration"] = 1.  # falha após ajustar a classe 0
+    bad.loc[y == 1, "campaign"] = 1.  # falha após ajustar a classe 0 (amostra constante)
     fresh = MixedNaiveBayes()
     with pytest.raises(ValueError, match="constantes"):
         fresh.fit(bad, y)
@@ -155,10 +155,10 @@ def test_transactional_fit_and_refit(training, fitted):
 
 def test_reordering_and_pandas_categorical(training, fitted):
     X, y = training
-    reordered = X.loc[:, ["marital", "duration", "age"]].copy()
-    reordered["marital"] = pd.Categorical(reordered.marital, categories=MARITAL_CATEGORIES)
+    reordered = X.loc[:, ["loan", "campaign", "age"]].copy()
+    reordered["loan"] = pd.Categorical(reordered.loan, categories=LOAN_CATEGORIES)
     other = MixedNaiveBayes().fit(reordered, y)
-    assert other.feature_names_in_ == ("age", "duration", "marital")
+    assert other.feature_names_in_ == ("age", "campaign", "loan")
     assert other.n_features_in_ == 3
     np.testing.assert_array_equal(other.predict_proba(reordered), fitted.predict_proba(X))
     np.testing.assert_array_equal(fitted.predict(X.iloc[::-1]), fitted.predict(X)[::-1])
@@ -170,7 +170,7 @@ def test_exact_ties_choose_zero_even_in_far_tail(training):
     model = MixedNaiveBayes().fit(X, pd.Series([0, 0, 0, 1, 1, 1]))
     # O produto linear sofre underflow; scores muito negativos e iguais
     # ainda precisam produzir posteriores exatamente simétricas.
-    query = group.assign(age=1e10, duration=1e8)
+    query = group.assign(age=1e10, campaign=1e8)
     scores = model.joint_log_likelihood(query)
     assert np.isfinite(scores).all()
     assert (np.exp(scores) == 0).all()
@@ -192,7 +192,7 @@ def test_scoring_does_not_refit_or_retain_input(training, fitted, monkeypatch):
     fitted.predict_log_proba(query)
     fitted.predict_proba(query)
     X.loc[:, "age"] = 999
-    query.loc[:, "duration"] = 999
+    query.loc[:, "campaign"] = 999
     assert fitted.get_fitted_parameters() == previous
     assert not any(isinstance(value, (pd.DataFrame, pd.Series)) for value in vars(fitted).values())
 
@@ -201,14 +201,14 @@ def test_export_is_independent_and_json_serializable(fitted):
     export = fitted.get_fitted_parameters()
     assert json.loads(json.dumps(export, allow_nan=False)) == export
     export["age"]["0"]["mean"] = -100
-    export["marital"]["0"]["single"] = 0
+    export["loan"]["0"]["no"] = 0
     export["classes"].reverse()
     export["class_count"]["0"] = 0
     assert fitted.get_fitted_parameters() != export
     assert fitted.class_count_[0] == 3
     assert fitted.age_params_[0].mean == 30
     assert fitted.class_order_ == (0, 1)
-    assert np.exp(fitted.marital_log_prob_[0]["single"]) == pytest.approx(0.5)
+    assert np.exp(fitted.loan_log_prob_[0]["no"]) == pytest.approx(0.8)
 
 
 def test_identical_refit_produces_identical_parameters(training):
@@ -285,14 +285,14 @@ def test_frozen_split_invariants_and_scipy_reference(data_split):
     expected = []
     for c in (0, 1):
         age = model.age_params_[c]
-        duration = model.duration_params_[c]
+        campaign = model.campaign_params_[c]
         expected.append(
             math.log(model.class_count_[c] / 3616)
             + stats.norm.logpdf(X.age, loc=age.mean, scale=math.sqrt(age.variance))
-            + stats.gamma.logpdf(X.duration, a=duration.shape, loc=0, scale=duration.scale)
-            + X.marital.map(model.marital_log_prob_[c]).to_numpy()
+            + stats.gamma.logpdf(X.campaign, a=campaign.shape, loc=0, scale=campaign.scale)
+            + X.loan.map(model.loan_log_prob_[c]).to_numpy()
         )
-        assert sum(np.exp(list(model.marital_log_prob_[c].values()))) == pytest.approx(1.)
+        assert sum(np.exp(list(model.loan_log_prob_[c].values()))) == pytest.approx(1.)
     np.testing.assert_allclose(model.joint_log_likelihood(X), np.column_stack(expected))
     posterior = model.predict_proba(X)
     assert posterior.shape == (905, 2)

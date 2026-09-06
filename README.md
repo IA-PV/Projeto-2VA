@@ -138,10 +138,10 @@ A variável-alvo $y$ é mapeada de maneira estrita e determinística:
 
 Conforme definido no contrato de dados e na especificação do projeto, foram selecionados exatamente três atributos de tipos distintos:
 1. **`age`** (numérico inteiro, modelado como contínuo): Idade do cliente (faixa observada nesta amostra: 19 a 87 anos).
-2. **`duration`** (numérico inteiro positivo, modelado como contínuo): Duração do último contato telefônico em segundos (faixa observada nesta amostra: 4 a 3.025 segundos).
-3. **`marital`** (categórico politômico): Estado civil do cliente com domínio estrito $\mathcal{D} = \{\text{divorced}, \text{married}, \text{single}\}$.
+2. **`campaign`** (numérico inteiro positivo, modelado como contínuo): Número de contatos realizados durante esta campanha para o cliente (faixa observada nesta amostra: 1 a 50 contatos).
+3. **`loan`** (categórico binário): Se o cliente possui empréstimo pessoal ativo com domínio estrito $\mathcal{D} = \{\text{no}, \text{yes}\}$.
 
-As características foram escolhidas para combinar dois tipos de evidência em um único classificador e permitir análises com interpretações distintas. `age` representa um perfil demográfico disponível antes da campanha; `duration` representa o nível de engajamento observado durante a ligação e possui forte associação empírica com a resposta; `marital` introduz uma variável nominal de três categorias. Essa escolha também permite demonstrar explicitamente a combinação de densidades contínuas com probabilidades discretas.
+As características foram escolhidas para combinar dois tipos de evidência em um único classificador e permitir análises com interpretações distintas. `age` representa um perfil demográfico do cliente; `campaign` representa o esforço e intensidade operacional de marketing direcionado ao cliente; `loan` introduz uma variável binária indicadora de endividamento pessoal pré-existente. Essa escolha demonstra a combinação de densidades contínuas (Normal e Gamma) com probabilidades discretas (Categórica com suavização de Laplace para $K=2$).
 
 ---
 
@@ -153,15 +153,15 @@ Toda a estimação de parâmetros é realizada **estritamente sobre as 3.616 obs
 |---|---|---|
 | **Prior** $P(Y=c)$ | Empírica | Frequência relativa: $N_c / N_{\text{train}}$ ($P(0) \approx 0{,}8847$, $P(1) \approx 0{,}1153$) |
 | **`age`** | Normal (Gaussiana) | $\hat{\mu}_c$ e $\hat{\sigma}_c^2$ via MLE com $N_c$ no denominador (`ddof=0`) |
-| **`duration`** | Gamma | Forma $\hat{k}_c$ e escala $\hat{\theta}_c$ via MLE com localização fixa em zero (`floc=0`) |
-| **`marital`** | Categórica | Frequência com suavização de Laplace: $\frac{N_{c,k} + \alpha}{N_c + \alpha K}$ com $\alpha=1$ e $K=3$ |
+| **`campaign`** | Gamma | Forma $\hat{k}_c$ e escala $\hat{\theta}_c$ via MLE com localização fixa em zero (`floc=0`) |
+| **`loan`** | Categórica | Frequência com suavização de Laplace: $\frac{N_{c,k} + \alpha}{N_c + \alpha K}$ com $\alpha=1$ e $K=2$ |
 | *Diagnóstico* | Exponencial | Taxa $\hat{\lambda}_c = 1/\bar{x}_c$; superada pela Gamma no critério AIC |
 
 ### 7.1 Justificativas das hipóteses probabilísticas
 
-- **`age` — Normal:** idades de clientes adultos tendem a se concentrar em torno de uma região central, com frequências menores nos extremos. A Normal fornece uma aproximação contínua simples para esse formato e permite obter uma fronteira analítica. Trata-se de uma aproximação: idade é inteira, limitada e pode misturar subpopulações, razão pela qual a aderência também é verificada visualmente nos histogramas.
-- **`duration` — Gamma:** uma duração é estritamente positiva, assimétrica à direita e pode apresentar cauda longa devido a uma pequena quantidade de chamadas muito demoradas. A Gamma possui exatamente esse suporte e flexibilidade de forma. Além da justificativa de domínio, ela apresentou AIC e estatística KS menores que a Exponencial nas duas classes do treino.
-- **`marital` — Categórica:** os três estados civis são resultados nominais, mutuamente exclusivos e sem distância numérica natural. Portanto, a modelagem adequada consiste em estimar $P(X=a_k\mid Y=c)$ para cada categoria. A suavização de Laplace mantém a regra definida caso alguma categoria válida não apareça em uma classe do treino.
+- **`age` — Normal:** idades de clientes adultos tendem a se concentrar em torno de uma região central, com frequências menores nos extremos. A Normal fornece uma aproximação contínua simples para esse formato e permite obter fronteiras analíticas. Trata-se de uma aproximação: idade é inteira, limitada e pode misturar subpopulações, razão pela qual a aderência também é verificada visualmente nos histogramas.
+- **`campaign` — Gamma:** a contagem de contatos é estritamente positiva ($x \ge 1$), fortemente assimétrica à direita e possui cauda longa (a vasta maioria dos clientes recebe 1 a 3 contatos, mas alguns chegam até 50). A Gamma possui suporte $(0, \infty)$, acomodando a assimetria e a cauda longa. Além disso, a Gamma obteve AIC substancialmente menor que a Exponencial nas duas classes do treino ($12.661{,}02$ vs $13.132{,}14$ na classe 0; $1.404{,}33$ vs $1.519{,}18$ na classe 1).
+- **`loan` — Categórica:** o empréstimo pessoal é uma variável dicotômica nominal com categorias $\text{no}$ e $\text{yes}$. A modelagem adequada consiste em estimar $P(X=a_k \mid Y=c)$ para $k \in \{\text{no}, \text{yes}\}$. A suavização de Laplace ($\alpha=1$, $K=2$) garante probabilidades estritamente positivas e bem calibradas.
 
 ### 7.2 Divisão dos dados e priors
 
@@ -180,17 +180,16 @@ Foram usados `test_size=0.20`, `random_state=42` e estratificação por `y`. As 
 | Característica | Classe 0 (`no`) | Classe 1 (`yes`) |
 |---|---|---|
 | `age` — Normal | $\mu_0=40{,}8718$, $\sigma_0^2=101{,}2452$ | $\mu_1=42{,}3645$, $\sigma_1^2=170{,}6969$ |
-| `duration` — Gamma | $k_0=1{,}5285$, $\theta_0=147{,}4478$ | $k_1=2{,}2528$, $\theta_1=247{,}8195$ |
-| `marital=divorced` | 0,114616 | 0,154762 |
-| `marital=married` | 0,625859 | 0,526190 |
-| `marital=single` | 0,259525 | 0,319048 |
+| `campaign` — Gamma | $k_0=1{,}7107$, $\theta_0=1{,}6742$ | $k_1=2{,}1680$, $\theta_1=1{,}0464$ |
+| `loan=no` | $0{,}835676$ | $0{,}916468$ |
+| `loan=yes` | $0{,}164324$ | $0{,}083532$ |
 
 Os valores completos e as fronteiras calculadas estão em [`distribution_parameters.json`](reports/metrics/distribution_parameters.json).
 
 - **Razão de Verossimilhança Univariada**: $\Lambda(x) = \frac{p(x \mid Y=1)}{p(x \mid Y=0)}$.
 - **Regra de Decisão MAP**: Decide classe 1 se $\Lambda(x) > \frac{P(Y=0)}{P(Y=1)} \approx 7{,}6715$.
 - **Combinação Multivariada**: O modelo misto assume independência condicional ingênua e soma as evidências em escala logarítmica natural:
-  $$\ln P(Y=c \mid \mathbf{x}) \propto \ln P(Y=c) + \ln p(\text{age} \mid c) + \ln p(\text{duration} \mid c) + \ln P(\text{marital} \mid c)$$
+  $$\ln P(Y=c \mid \mathbf{x}) \propto \ln P(Y=c) + \ln p(\text{age} \mid c) + \ln p(\text{campaign} \mid c) + \ln P(\text{loan} \mid c)$$
   As probabilidades posteriores normalizadas são obtidas numericamente via `logsumexp`.
 
 ### 7.4 Exemplos numéricos completos do Teorema de Bayes
@@ -215,29 +214,29 @@ $$
 
 Embora $p(20\mid Y=1)>p(20\mid Y=0)$ e $\Lambda(20)=1{,}5298$ forneça evidência em favor de `yes`, a posterior positiva permanece em apenas 16,63% por causa da prior majoritariamente negativa. Esse exemplo evidencia a diferença entre **verossimilhança**, que avalia o valor observado supondo uma classe, e **posterior**, que avalia a classe após combinar likelihood e prior.
 
-**Exemplo 2 — `duration=1000`:**
+**Exemplo 2 — `campaign=1`:**
 
 $$
-P(Y=1\mid 1000)=
-\frac{0{,}0003609829\times0{,}1153208}
-{0{,}0000238338\times0{,}8846792+0{,}0003609829\times0{,}1153208}
-=\frac{0{,}0000416288}{0{,}0000627141}
-\approx0{,}66379.
+P(Y=1\mid 1)=
+\frac{0{,}32180527\times0{,}1153208}
+{0{,}25023961\times0{,}8846792+0{,}32180527\times0{,}1153208}
+=\frac{0{,}03711084}{0{,}25849033}
+\approx0{,}14357.
 $$
 
-A razão $\Lambda(1000)=15{,}1458$ supera o limiar MAP de 7,6715; por isso o classificador univariado decide `yes`.
+A razão $\Lambda(1)=1{,}2860$ favorece ligeiramente a adesão (contatos iniciais têm maior taxa de conversão), mas não supera o limiar MAP de 7,6715; por isso o classificador univariado decide `no`.
 
-**Exemplo 3 — `marital=divorced`:**
+**Exemplo 3 — `loan=no`:**
 
 $$
-P(Y=1\mid divorced)=
-\frac{0{,}15476190\times0{,}1153208}
-{0{,}11461587\times0{,}8846792+0{,}15476190\times0{,}1153208}
-=\frac{0{,}01784727}{0{,}11924554}
-\approx0{,}14967.
+P(Y=1\mid no)=
+\frac{0{,}91646778\times0{,}1153208}
+{0{,}83567635\times0{,}8846792+0{,}91646778\times0{,}1153208}
+=\frac{0{,}10568779}{0{,}84501258}
+\approx0{,}12508.
 $$
 
-Apesar de `divorced` ter $\Lambda=1{,}3503>1$, essa evidência não é suficiente para vencer a prior negativa, e a decisão continua sendo `no`. Outros valores podem ser consultados em [`age_univariate_examples.csv`](reports/metrics/age_univariate_examples.csv), [`duration_univariate_examples.csv`](reports/metrics/duration_univariate_examples.csv) e [`marital_univariate_examples.csv`](reports/metrics/marital_univariate_examples.csv).
+Apesar de a ausência de empréstimo ter $\Lambda=1{,}0967>1$, essa evidência é modesta frente à prior negativa, e a decisão univariada continua sendo `no`. Outros valores podem ser consultados em [`age_univariate_examples.csv`](reports/metrics/age_univariate_examples.csv), [`campaign_univariate_examples.csv`](reports/metrics/campaign_univariate_examples.csv) e [`loan_univariate_examples.csv`](reports/metrics/loan_univariate_examples.csv).
 
 ### 7.5 Comportamento por classe e regras univariadas
 
@@ -245,15 +244,15 @@ Apesar de `divorced` ter $\Lambda=1{,}3503>1$, essa evidência não é suficient
 
 - Para `age`, as distribuições apresentam forte sobreposição. A likelihood favorece `yes` abaixo de aproximadamente 26,95 anos e acima de 50,44 anos, mas, no domínio observado, a decisão MAP somente muda para `yes` acima de 72,64 anos.
 
-![Comportamento empírico, distribuições condicionais e fronteira de duration](reports/figures/duration_conditional_and_decision.png)
+![Comportamento empírico, distribuições condicionais e fronteira de campaign](reports/figures/campaign_conditional_and_decision.png)
 
-- Para `duration`, chamadas curtas são mais compatíveis com `no`. A likelihood passa a favorecer `yes` em aproximadamente 315,10 segundos, enquanto a prior desloca a fronteira MAP para 808,43 segundos.
+- Para `campaign`, poucos contatos (1 ou 2) favorecem `yes` na likelihood ($\Lambda(x) > 1$ até a fronteira de verossimilhança em 3,18 contatos). Acima de 3,18 contatos, a probabilidade decresce rapidamente na classe positiva ($\theta_1 \approx 1{,}05$ vs $\theta_0 \approx 1{,}67$). No entanto, a prior negativa domina em todo o domínio: não existe fronteira MAP univariada positiva para `campaign`.
 
-![Probabilidades condicionais e razões de marital](reports/figures/marital_conditional_probabilities.png)
+![Probabilidades condicionais e razões de loan](reports/figures/loan_conditional_probabilities.png)
 
-- Para `marital`, `divorced` e `single` fornecem evidência fraca em favor de `yes`, enquanto `married` favorece `no`. Nenhuma razão supera o limiar MAP; portanto, as três categorias são classificadas como `no` quando usadas isoladamente.
+- Para `loan`, a ausência de empréstimo (`no`) tem $\Lambda \approx 1{,}10$ (taxa de adesão sutilmente maior), enquanto ter empréstimo (`yes`) reduz a adesão ($\Lambda \approx 0{,}51$). Nenhuma das categorias supera o limiar MAP de 7,6715; portanto, ambas são classificadas univariadamente como `no`.
 
-Qualitativamente, `duration` possui o maior poder discriminativo, seguida por `age`; `marital` é a menos discriminativa. Essa conclusão considera a separação visual, a amplitude da razão de verossimilhanças e a existência de regiões MAP positivas, sem consultar o conjunto de teste.
+Qualitativamente, `campaign` e `age` possuem as maiores dinâmicas de likelihood, enquanto `loan` é binária e restrita. Essa conclusão decorre das evidências puras do treino, sem consultar o conjunto de teste.
 
 ---
 
@@ -269,8 +268,8 @@ Qualitativamente, `duration` possui o maior poder discriminativo, seguida por `a
 ├── reports/
 │   ├── figures/                 # Gráficos e curvas gerados programaticamente
 │   │   ├── age_conditional_and_decision.png
-│   │   ├── duration_conditional_and_decision.png
-│   │   ├── marital_conditional_probabilities.png
+│   │   ├── campaign_conditional_and_decision.png
+│   │   ├── loan_conditional_probabilities.png
 │   │   └── confusion_matrix.png
 │   └── metrics/                 # Relatórios JSON/CSV auditáveis versionados
 │       ├── data_split.json
@@ -280,10 +279,10 @@ Qualitativamente, `duration` possui o maior poder discriminativo, seguida por `a
 │       ├── run_manifest.json
 │       ├── confusion_matrix.csv
 │       ├── error_groups.csv
-│       ├── age_by_marital_within_class.csv
+│       ├── age_by_loan_within_class.csv
 │       ├── age_univariate_examples.csv
-│       ├── duration_univariate_examples.csv
-│       └── marital_univariate_examples.csv
+│       ├── campaign_univariate_examples.csv
+│       └── loan_univariate_examples.csv
 ├── src/                         # Implementação da biblioteca científica
 │   ├── __init__.py
 │   ├── config.py                # Configuração centralizada e ExperimentConfig imutável
@@ -385,39 +384,39 @@ A execução do estudo consolida artefatos em `reports/`:
 ### 12.1 Manifesto de Execução ([`run_manifest.json`](reports/metrics/run_manifest.json))
 Registra metadados de execução, plataforma, hash dos dados, hiperparâmetros e famílias de distribuição de acordo com a especificação de reprodutibilidade do projeto.
 
-O diagnóstico [`age_by_marital_within_class.csv`](reports/metrics/age_by_marital_within_class.csv)
-resume, exclusivamente no treino, a contagem e a idade média/mediana por classe e estado
-civil. Ele documenta quantitativamente uma limitação da independência condicional.
+O diagnóstico [`age_by_loan_within_class.csv`](reports/metrics/age_by_loan_within_class.csv)
+resume, exclusivamente no treino, a contagem e a idade média/mediana por classe e posse de
+empréstimo pessoal. Ele documenta quantitativamente a associação entre os atributos condicionada à classe.
 
 ### 12.2 Métricas Finais Auditadas no Holdout ([`final_metrics.json`](reports/metrics/final_metrics.json))
 Resultados obtidos sobre as 905 observações congeladas de teste:
 
 | Métrica | Classificador Misto Bayesiano | Baseline Majoritário (sempre classe 0) |
 |---|---|---|
-| **Acurácia** | **$88{,}73\%$** ($0{,}8873$) | $88{,}51\%$ ($0{,}8851$) |
-| **Precisão** | **$51{,}92\%$** ($0{,}5192$) | $0{,}00\%$ ($0{,}0000$) |
-| **Recall (Sensibilidade)** | **$25{,}96\%$** ($0{,}2596$) | $0{,}00\%$ ($0{,}0000$) |
-| **F1-Score** | **$34{,}62\%$** ($0{,}3462$) | $0{,}00\%$ ($0{,}0000$) |
+| **Acurácia** | **$88{,}29\%$** ($0{,}8829$) | $88{,}51\%$ ($0{,}8851$) |
+| **Precisão** | **$41{,}67\%$** ($0{,}4167$) | $0{,}00\%$ ($0{,}0000$) |
+| **Recall (Sensibilidade)** | **$4{,}81\%$** ($0{,}0481$) | $0{,}00\%$ ($0{,}0000$) |
+| **F1-Score** | **$8{,}62\%$** ($0{,}0862$) | $0{,}00\%$ ($0{,}0000$) |
 
 ### 12.3 Matriz de Confusão Oficial ([`confusion_matrix.csv`](reports/metrics/confusion_matrix.csv))
 Ordem canônica $[0, 1]$ (linhas: real, colunas: predito):
-- **Verdadeiros Negativos (VN)**: $776$ (cliente não aderiu e o modelo previu não adesão)
-- **Falsos Positivos (FP)**: $25$ (cliente não aderiu, mas o modelo previu adesão)
-- **Falsos Negativos (FN)**: $77$ (cliente aderiu, mas o modelo previu não adesão)
-- **Verdadeiros Positivos (VP)**: $27$ (cliente aderiu e o modelo previu adesão)
-- **Total**: $776 + 25 + 77 + 27 = 905$ observações.
+- **Verdadeiros Negativos (VN)**: $794$ (cliente não aderiu e o modelo previu não adesão)
+- **Falsos Positivos (FP)**: $7$ (cliente não aderiu, mas o modelo previu adesão)
+- **Falsos Negativos (FN)**: $99$ (cliente aderiu, mas o modelo previu não adesão)
+- **Verdadeiros Positivos (VP)**: $5$ (cliente aderiu e o modelo previu adesão)
+- **Total**: $794 + 7 + 99 + 5 = 905$ observações.
 
 ![Matriz de confusão do classificador no conjunto de teste](reports/figures/confusion_matrix.png)
 
 ### 12.4 Interpretação dos erros
 
-Os **77 falsos negativos** são o erro mais importante: representam clientes que aderiram, mas foram classificados como `no`. Todos possuem `duration` abaixo da fronteira MAP univariada de 808,43 segundos, e a mediana de duração desse grupo é 328 segundos. Para esses clientes, chamadas curtas ou moderadas, combinadas com a prior negativa de 88,47%, não produziram evidência suficiente para a decisão positiva. Como consequência, o modelo identificou somente 27 dos 104 clientes positivos, resultando em recall de 25,96%.
+Os **99 falsos negativos** constituem a principal dificuldade de detecção do modelo: decorrem da dominância da prior negativa ($88{,}47\%$), exigindo uma razão de verossimilhanças combinada superior a $7{,}6715$. Como as evidências de `campaign` (máximo de $\Lambda \approx 1{,}29$) e `loan` (máximo de $\Lambda \approx 1{,}10$) são modestas, clientes de idade intermediária (média de 41,37 anos neste grupo) não acumulam verossimilhança conjunta suficiente para superar a prior.
 
-Os **25 falsos positivos** são clientes que não aderiram apesar da previsão `yes`. A mediana de duração desse grupo é 957 segundos, e 21 casos (84%) estão acima do percentil 95 de duração observado no treino. Isso mostra que chamadas excepcionalmente longas constituem uma evidência forte de adesão, mas não garantem o resultado: a distribuição de `duration` da classe negativa também possui uma cauda longa.
+Os **7 falsos positivos** concentram-se em clientes idosos (média de idade de 78,86 anos e mediana de 79 anos), onde a maior dispersão da Gaussiana da classe positiva ($\sigma_1^2 \approx 170{,}70$ vs $\sigma_0^2 \approx 101{,}25$) projeta densidades relativas expressivas na cauda superior de idade, superando o limiar de decisão mesmo para clientes que não subscreveram o produto.
 
-Os verdadeiros positivos possuem mediana de duração semelhante, 994 segundos. Portanto, `duration` é útil para localizar parte dos positivos, mas não separa perfeitamente os dois resultados. `age` e `marital` acrescentam evidência insuficiente para recuperar a maioria dos positivos de duração moderada.
+Os **5 verdadeiros positivos** também refletem o perfil demográfico sênior (média de 75,20 anos) com poucos contatos de campanha (média de 1,60 contatos, todos com `loan=no`), demonstrando que o modelo é capaz de identificar com precisão moderada ($41{,}67\%$) os clientes em que a convergência de fatores atinge significância probabilística estrita.
 
-A acurácia de 88,73% supera o baseline majoritário de 88,51% em somente 0,22 ponto percentual. Esse pequeno ganho, junto do F1 de 34,62%, confirma que a acurácia isolada é pouco informativa nesta base desbalanceada. Os resumos numéricos completos dos quatro grupos estão em [`error_groups.csv`](reports/metrics/error_groups.csv).
+A acurácia de 88,29% é muito próxima ao baseline majoritário (88,51%). Esse resultado ilustra de forma didática e transparente o impacto do desbalanceamento severo: métricas de precisão e recall são essenciais para diagnosticar o comportamento do classificador. Os resumos numéricos completos dos quatro grupos de erro estão disponíveis em [`error_groups.csv`](reports/metrics/error_groups.csv).
 
 ---
 
@@ -433,11 +432,10 @@ A acurácia de 88,73% supera o baseline majoritário de 88,51% em somente 0,22 p
 
 ## 14. Limitações Principais
 
-1. **Hipótese Ingênua de Independência Condicional**: Assume que idade, duração e estado civil são independentes dada a classe, embora `age` e `marital` permaneçam claramente associados no treino. Entre os não aderentes, por exemplo, a idade média varia de 34,04 anos (`single`) a 44,45 (`divorced`); entre os aderentes, varia de 33,57 a 49,30 anos. As contagens, médias e medianas completas estão em [`age_by_marital_within_class.csv`](reports/metrics/age_by_marital_within_class.csv). Isso não invalida o classificador, mas mostra que a fatoração Naive Bayes é uma aproximação.
-2. **Normal como aproximação para `age`**: Idade é inteira, limitada, assimétrica e pode misturar subpopulações. A Normal foi adotada pela simplicidade e interpretabilidade das fronteiras, sem alegação de que seja a distribuição verdadeira ou a melhor família possível.
-3. **Gamma como ajuste relativo para `duration`**: A Gamma obteve AIC e estatística KS menores que a Exponencial nas duas classes do treino. Esse resultado sustenta somente um ajuste relativo melhor entre as candidatas comparadas, não uma prova de aderência absoluta.
-4. **Variável `duration` Pós-Contato (Viés de Seleção)**: A duração da chamada só é conhecida após o encerramento do contato. Portanto, em um cenário de triagem bancária a priori (antes de discar para o cliente), essa variável não está disponível.
-5. **Desbalanceamento Severo**: A probabilidade a priori da classe negativa ($~88,5\%$) impõe um limiar elevado ($\Lambda > 7{,}67$), fazendo com que o classificador seja conservador na atribuição da classe positiva.
+1. **Hipótese Ingênua de Independência Condicional**: Assume que idade, campanha e empréstimo são condicionalmente independentes dada a classe. No entanto, clientes com empréstimo pessoal na classe aderente tendem a ser mais jovens (média de 38,24 anos vs 42,73 anos para sem empréstimo), conforme demonstrado em [`age_by_loan_within_class.csv`](reports/metrics/age_by_loan_within_class.csv). Essa dependência residual ilustra a natureza aproximada do Naive Bayes.
+2. **Normal como aproximação para `age`**: Idade é inteira e truncada. A Normal foi adotada pela simplicidade analítica e pela clareza na interpretação das fronteiras de decisão.
+3. **Gamma para `campaign`**: A Gamma modela adequadamente o suporte estritamente positivo e a assimetria acentuada dos contatos (AIC menor que o da Exponencial). No entanto, contatos são dados discretos inteiros (dados de contagem).
+4. **Desbalanceamento Severo**: A forte assimetria a priori ($88{,}47\%$ de negativos) exige evidência substancialmente alta ($\Lambda > 7{,}67$) para qualquer predição positiva, resultando em um modelo naturalmente conservador no recall.
 
 ---
 

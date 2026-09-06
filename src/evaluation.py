@@ -21,7 +21,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from src.config import MARITAL_CATEGORIES
+from src.config import LOAN_CATEGORIES
 
 
 def _to_binary_array(values: Any, name: str) -> np.ndarray:
@@ -229,11 +229,11 @@ def evaluate_predictions(y_true: Any, y_pred: Any) -> dict:
 
 def build_error_groups(
     X: pd.DataFrame, y_true: Any, y_pred: Any, *,
-    duration_boundary: float, long_duration_threshold: float,
+    campaign_boundary: float, long_campaign_threshold: float,
 ) -> pd.DataFrame:
     """Resume VN/FP/FN/VP, preservando grupos vazios e empates na moda.
 
-    Fronteira MAP univariada e quantil de duração longa devem vir somente
+    Fronteira MAP univariada e quantil de campaign longa devem vir somente
     do treino. São referências descritivas, nunca novos limiares de decisão.
     Series devem ter o mesmo índice/ordem que X; arrays seguem a ordem de X.
     Proporções usam o tamanho de cada grupo como denominador.
@@ -245,22 +245,22 @@ def build_error_groups(
     for values in (y_true, y_pred):
         if isinstance(values, pd.Series) and not values.index.equals(X.index):
             raise ValueError("Índice e ordem dos rótulos devem coincidir com X.")
-    for threshold in (duration_boundary, long_duration_threshold):
+    for threshold in (campaign_boundary, long_campaign_threshold):
         if not np.isfinite(threshold) or threshold <= 0:
-            raise ValueError("Referências de duração devem ser positivas e finitas.")
+            raise ValueError("Referências de campaign devem ser positivas e finitas.")
     rows = []
     for name, real, predicted in (("VN", 0, 0), ("FP", 0, 1), ("FN", 1, 0), ("VP", 1, 1)):
         group = X.loc[(truth == real) & (prediction == predicted)]
         row = {"group": name, "n": len(group)}
-        for feature in ("age", "duration"):
+        for feature in ("age", "campaign"):
             for statistic in ("mean", "median"):
                 row[f"{feature}_{statistic}"] = getattr(group[feature], statistic)()
-        row["marital_mode"] = " | ".join(sorted(group["marital"].mode().astype(str)))
-        for category in MARITAL_CATEGORIES:
-            row[f"marital_{category}_n"] = int((group["marital"] == category).sum())
+        row["loan_mode"] = " | ".join(sorted(group["loan"].mode().astype(str)))
+        for category in LOAN_CATEGORIES:
+            row[f"loan_{category}_n"] = int((group["loan"] == category).sum())
         for label, mask in (
-            ("duration_below_boundary", group["duration"] < duration_boundary),
-            ("duration_above_train_q95", group["duration"] > long_duration_threshold),
+            ("campaign_below_boundary", group["campaign"] < campaign_boundary),
+            ("campaign_above_train_q95", group["campaign"] > long_campaign_threshold),
         ):
             row[f"{label}_n"] = int(mask.sum())
             row[f"{label}_fraction"] = float(mask.mean()) if len(group) else np.nan
@@ -268,10 +268,10 @@ def build_error_groups(
     return pd.DataFrame(rows)
 
 
-def summarize_age_by_marital(X_train: pd.DataFrame, y_train: pd.Series) -> pd.DataFrame:
-    """Evidência descritiva de associação age/marital dentro de cada classe."""
+def summarize_age_by_loan(X_train: pd.DataFrame, y_train: pd.Series) -> pd.DataFrame:
+    """Evidência descritiva de associação age/loan dentro de cada classe."""
     if not X_train.index.equals(y_train.index):
         raise ValueError("Índice e ordem de y_train devem coincidir com X_train.")
     frame = X_train.assign(actual_class=_to_binary_array(y_train, "y_train"))
-    return (frame.groupby(["actual_class", "marital"], observed=True)["age"]
+    return (frame.groupby(["actual_class", "loan"], observed=True)["age"]
             .agg(n="size", age_mean="mean", age_median="median").reset_index())

@@ -16,7 +16,7 @@ import pandas as pd
 from scipy import stats
 from scipy.special import gammaln
 
-from src.config import CLASS_ORDER, LAPLACE_ALPHA, MARITAL_CATEGORIES, VARIANCE_FLOOR
+from src.config import CLASS_ORDER, LAPLACE_ALPHA, LOAN_CATEGORIES, VARIANCE_FLOOR
 
 
 def _positive_finite(value: float, name: str) -> None:
@@ -203,13 +203,13 @@ def _categorical_values(values: pd.Series, categories: tuple[str, ...]) -> pd.Se
 
 def fit_categorical(
     values: pd.Series,
-    categories: tuple[str, ...] = MARITAL_CATEGORIES,
+    categories: tuple[str, ...] = LOAN_CATEGORIES,
     alpha: float = LAPLACE_ALPHA,
 ) -> dict[str, float]:
     """Estima (N_k + alpha)/(N + alpha*K), incluindo categorias ausentes.
 
     Recebe somente a série de treino de uma classe; alpha deve ser positivo.
-    O modelo principal usa o domínio congelado de marital e alpha=1.
+    O modelo principal usa o domínio congelado de loan e alpha=1.
     """
     series = _categorical_values(values, categories)
     if series.empty:
@@ -267,8 +267,8 @@ def aic(log_likelihoods: np.ndarray, q: int) -> float:
     return result
 
 
-def compare_duration_distributions(values: np.ndarray) -> pd.DataFrame:
-    """Compara Exponencial e Gamma na mesma amostra de duration de treino.
+def compare_campaign_distributions(values: np.ndarray) -> pd.DataFrame:
+    """Compara Exponencial e Gamma na mesma amostra de campaign de treino.
 
     KS é apenas diagnóstico relativo com parâmetros estimados; seu p-valor
     não é reportado como evidência de aderência. Não escolhe um classificador.

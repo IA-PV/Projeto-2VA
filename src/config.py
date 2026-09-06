@@ -38,7 +38,7 @@ EXPECTED_COLUMNS: list[str] = [
 #  Seleção de atributos e codificação do alvo
 # ──────────────────────────────────────────────
 
-FEATURE_COLUMNS: list[str] = ["age", "duration", "marital"]
+FEATURE_COLUMNS: list[str] = ["age", "campaign", "loan"]
 """As três features selecionadas para o modelo."""
 
 TARGET_COLUMN: str = "y"
@@ -51,8 +51,8 @@ TARGET_MAPPING: dict[str, int] = {"no": 0, "yes": 1}
 #  Domínios esperados (identidade da versão)
 # ──────────────────────────────────────────────
 
-MARITAL_CATEGORIES: tuple[str, ...] = ("divorced", "married", "single")
-"""Categorias válidas de estado civil na versão congelada."""
+LOAN_CATEGORIES: tuple[str, ...] = ("no", "yes")
+"""Categorias válidas de empréstimo pessoal na versão congelada."""
 
 TARGET_CATEGORIES: frozenset[str] = frozenset({"no", "yes"})
 """Valores válidos do alvo."""
@@ -60,8 +60,8 @@ TARGET_CATEGORIES: frozenset[str] = frozenset({"no", "yes"})
 AGE_RANGE: tuple[int, int] = (19, 87)
 """Faixa observada de age na amostra reduzida congelada."""
 
-DURATION_RANGE: tuple[int, int] = (4, 3_025)
-"""Faixa observada de duration na amostra reduzida congelada."""
+CAMPAIGN_RANGE: tuple[int, int] = (1, 50)
+"""Faixa observada de campaign na amostra reduzida congelada."""
 
 # ──────────────────────────────────────────────
 #  Divisão treino/teste
@@ -107,8 +107,8 @@ MODEL_PARAMETERS_PATH: Path = Path("reports/metrics/model_parameters.json")
 AGE_EXAMPLES: list[int] = [20, 40, 60, 80]
 """Valores predefinidos de age para tabelas de exemplo univariado."""
 
-DURATION_EXAMPLES: list[int] = [100, 300, 500, 1000]
-"""Valores predefinidos de duration para tabelas de exemplo univariado."""
+CAMPAIGN_EXAMPLES: list[int] = [1, 2, 5, 10]
+"""Valores predefinidos de campaign para tabelas de exemplo univariado."""
 
 UNIVARIATE_FIGURES_DIR: Path = Path("reports/figures")
 """Diretório de saída para figuras da análise univariada."""
@@ -122,8 +122,8 @@ UNIVARIATE_METRICS_DIR: Path = Path("reports/metrics")
 
 DISTRIBUTIONS: dict[str, str] = {
     "age": "gaussian",
-    "duration": "gamma",
-    "marital": "categorical_laplace",
+    "campaign": "gamma",
+    "loan": "categorical_laplace",
 }
 """Mapeamento canônico das famílias de distribuição por atributo."""
 
@@ -141,7 +141,7 @@ class ExperimentConfig:
 
     data_path: Path = Path("data/raw/bank.csv")
     output_dir: Path = Path("reports")
-    feature_columns: tuple[str, ...] = ("age", "duration", "marital")
+    feature_columns: tuple[str, ...] = ("age", "campaign", "loan")
     target_column: str = "y"
     test_size: float = 0.20
     random_state: int = 42

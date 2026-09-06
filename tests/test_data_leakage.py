@@ -16,7 +16,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from src.config import EXPECTED_SHA256, MARITAL_CATEGORIES, MODEL_PARAMETERS_PATH
+from src.config import EXPECTED_SHA256, LOAN_CATEGORIES, MODEL_PARAMETERS_PATH
 from src.data import DataSplit
 from src.distributions import (
     fit_categorical,
@@ -53,22 +53,22 @@ class TestDataLeakagePrevention:
             assert model.age_params_[c].mean == pytest.approx(age_direct.mean, rel=1e-12)
             assert model.age_params_[c].variance == pytest.approx(age_direct.variance, rel=1e-12)
 
-        # 3. Gamma MLE para 'duration'
+        # 3. Gamma MLE para 'campaign'
         for c in (0, 1):
-            dur_direct = fit_gamma_mle(X_train.loc[y_train == c, "duration"].to_numpy())
-            assert model.duration_params_[c].shape == pytest.approx(dur_direct.shape, rel=1e-12)
-            assert model.duration_params_[c].scale == pytest.approx(dur_direct.scale, rel=1e-12)
+            camp_direct = fit_gamma_mle(X_train.loc[y_train == c, "campaign"].to_numpy(dtype=float))
+            assert model.campaign_params_[c].shape == pytest.approx(camp_direct.shape, rel=1e-12)
+            assert model.campaign_params_[c].scale == pytest.approx(camp_direct.scale, rel=1e-12)
 
-        # 4. Categórico para 'marital'
+        # 4. Categórico para 'loan'
         for c in (0, 1):
-            marital_direct = fit_categorical(
-                X_train.loc[y_train == c, "marital"],
-                categories=MARITAL_CATEGORIES,
+            loan_direct = fit_categorical(
+                X_train.loc[y_train == c, "loan"],
+                categories=LOAN_CATEGORIES,
                 alpha=1.0,
             )
-            for cat in MARITAL_CATEGORIES:
-                prob_model = np.exp(model.marital_log_prob_[c][cat])
-                assert prob_model == pytest.approx(marital_direct[cat], rel=1e-12)
+            for cat in LOAN_CATEGORIES:
+                prob_model = np.exp(model.loan_log_prob_[c][cat])
+                assert prob_model == pytest.approx(loan_direct[cat], rel=1e-12)
 
     def test_fit_parameters_differ_from_full_dataset(
         self, data_split: DataSplit, model_xy: tuple
@@ -101,10 +101,10 @@ class TestDataLeakagePrevention:
             var_full = model_full.age_params_[c].variance
             assert var_train != var_full
 
-        # 4. Parâmetros Gamma de duration diferem
+        # 4. Parâmetros Gamma de campaign diferem
         for c in (0, 1):
-            scale_train = model_train.duration_params_[c].scale
-            scale_full = model_full.duration_params_[c].scale
+            scale_train = model_train.campaign_params_[c].scale
+            scale_full = model_full.campaign_params_[c].scale
             assert scale_train != scale_full
 
     def test_serialized_parameters_contain_only_train_information(self) -> None:

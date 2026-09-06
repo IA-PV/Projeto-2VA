@@ -1,6 +1,6 @@
-"""Naive Bayes próprio para age, duration e marital — Classificador Misto.
+"""Naive Bayes próprio para age, campaign e loan — Classificador Misto.
 
-A independência condicional é uma aproximação operacional: age e marital
+A independência condicional é uma aproximação operacional: age e loan
 permanecem relacionados dentro das classes. Os ajustes usam apenas o treino;
 scores e posteriores reutilizam os parâmetros aprendidos, sem novo ajuste.
 """
@@ -18,7 +18,7 @@ from src.config import (
     CLASS_ORDER,
     FEATURE_COLUMNS,
     LAPLACE_ALPHA,
-    MARITAL_CATEGORIES,
+    LOAN_CATEGORIES,
     VARIANCE_FLOOR,
 )
 from src.distributions import (
@@ -34,7 +34,7 @@ from src.distributions import (
 
 
 class MixedNaiveBayes:
-    """Normal para age, Gamma para duration e categórica com Laplace.
+    """Normal para age, Gamma para campaign e categórica com Laplace.
 
     A API exige DataFrame com exatamente as três colunas do contrato, que
     são reordenadas explicitamente. As colunas de saída seguem (0, 1).
@@ -77,7 +77,7 @@ class MixedNaiveBayes:
         frame = X.loc[:, FEATURE_COLUMNS]
         if frame.isna().any().any():
             raise ValueError("X não pode conter nulos.")
-        for feature in ("age", "duration"):
+        for feature in ("age", "campaign"):
             dtype = frame[feature].dtype
             if (
                 not is_numeric_dtype(dtype)
@@ -87,10 +87,10 @@ class MixedNaiveBayes:
                 raise ValueError(f"{feature} deve conter números reais finitos.")
             if not np.isfinite(frame[feature].to_numpy(dtype=float)).all():
                 raise ValueError(f"{feature} deve conter somente valores finitos.")
-        if (frame["duration"] <= 0).any():
-            raise ValueError("duration deve ser estritamente positivo.")
-        if not frame["marital"].isin(MARITAL_CATEGORIES).all():
-            raise ValueError(f"marital deve pertencer às categorias {MARITAL_CATEGORIES}.")
+        if (frame["campaign"] <= 0).any():
+            raise ValueError("campaign deve ser estritamente positivo.")
+        if not frame["loan"].isin(LOAN_CATEGORIES).all():
+            raise ValueError(f"loan deve pertencer às categorias {LOAN_CATEGORIES}.")
         return frame
 
     def _check_fitted(self) -> None:
@@ -112,8 +112,8 @@ class MixedNaiveBayes:
         class_count: dict[int, int] = {}
         class_log_prior: dict[int, float] = {}
         age_params: dict[int, GaussianParams] = {}
-        duration_params: dict[int, GammaParams] = {}
-        marital_log_prob: dict[int, dict[str, float]] = {}
+        campaign_params: dict[int, GammaParams] = {}
+        loan_log_prob: dict[int, dict[str, float]] = {}
         for c in CLASS_ORDER:
             subset = frame.loc[y == c]
             class_count[c] = len(subset)
@@ -121,15 +121,15 @@ class MixedNaiveBayes:
             age_params[c] = fit_gaussian_mle(
                 subset["age"].to_numpy(dtype=float), variance_floor=self.variance_floor
             )
-            duration_params[c] = fit_gamma_mle(subset["duration"].to_numpy(dtype=float))
+            campaign_params[c] = fit_gamma_mle(subset["campaign"].to_numpy(dtype=float))
             probabilities = fit_categorical(
-                subset["marital"], MARITAL_CATEGORIES, self.alpha
+                subset["loan"], LOAN_CATEGORIES, self.alpha
             )
-            marital_log_prob[c] = {
+            loan_log_prob[c] = {
                 category: float(np.log(probabilities[category]))
-                for category in MARITAL_CATEGORIES
+                for category in LOAN_CATEGORIES
             }
-            logs = [class_log_prior[c], *marital_log_prob[c].values()]
+            logs = [class_log_prior[c], *loan_log_prob[c].values()]
             if not np.isfinite(logs).all():
                 raise ValueError("Priors e probabilidades categóricas devem ter logs finitos.")
 
@@ -139,8 +139,8 @@ class MixedNaiveBayes:
         self.class_count_ = class_count
         self.class_log_prior_ = class_log_prior
         self.age_params_ = age_params
-        self.duration_params_ = duration_params
-        self.marital_log_prob_ = marital_log_prob
+        self.campaign_params_ = campaign_params
+        self.loan_log_prob_ = loan_log_prob
         self.feature_names_in_ = tuple(FEATURE_COLUMNS)
         self.n_features_in_ = len(FEATURE_COLUMNS)
         self.is_fitted_ = True
@@ -151,15 +151,15 @@ class MixedNaiveBayes:
         self._check_fitted()
         frame = self._validate_X(X)
         age = frame["age"].to_numpy(dtype=float)
-        duration = frame["duration"].to_numpy(dtype=float)
+        campaign = frame["campaign"].to_numpy(dtype=float)
         scores = np.empty((len(frame), len(self.class_order_)), dtype=float)
         with np.errstate(over="ignore", invalid="ignore"):
             for column, c in enumerate(self.class_order_):
                 scores[:, column] = (
                     self.class_log_prior_[c]
                     + gaussian_logpdf(age, self.age_params_[c])
-                    + gamma_logpdf(duration, self.duration_params_[c])
-                    + frame["marital"].map(self.marital_log_prob_[c]).to_numpy(dtype=float)
+                    + gamma_logpdf(campaign, self.campaign_params_[c])
+                    + frame["loan"].map(self.loan_log_prob_[c]).to_numpy(dtype=float)
                 )
         if not np.isfinite(scores).all():
             raise ValueError("Score conjunto não finito; verifique os valores de X.")
@@ -192,12 +192,12 @@ class MixedNaiveBayes:
                 str(c): float(np.exp(self.class_log_prior_[c])) for c in self.class_order_
             },
             "age": {str(c): asdict(self.age_params_[c]) for c in self.class_order_},
-            "duration": {
-                str(c): asdict(self.duration_params_[c]) for c in self.class_order_
+            "campaign": {
+                str(c): asdict(self.campaign_params_[c]) for c in self.class_order_
             },
-            "marital": {
+            "loan": {
                 str(c): {category: float(np.exp(log_prob)) for category, log_prob
-                         in self.marital_log_prob_[c].items()}
+                         in self.loan_log_prob_[c].items()}
                 for c in self.class_order_
             },
             "alpha": float(self.alpha),
