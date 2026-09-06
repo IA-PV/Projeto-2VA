@@ -1,9 +1,9 @@
-"""Visualizações da análise Bayesiana univariada — RFC-0004.
+"""Visualizações da análise Bayesiana univariada.
 
 Responsabilidades
 -----------------
 - Gerar figuras reprodutíveis para age, duration e marital.
-- Seguir o padrão visual definido na RFC.
+- Seguir o padrão visual definido na especificação.
 
 Não deve
 --------
@@ -91,15 +91,17 @@ def plot_age_analysis(
     params_0: GaussianParams,
     params_1: GaussianParams,
     priors: dict[int, float],
+    train_age_0: np.ndarray,
+    train_age_1: np.ndarray,
     likelihood_boundaries: list[float],
     map_boundaries: list[float],
     save_path: Path,
     *,
     n_points: int = 1_000,
 ) -> Path:
-    """Gera a figura obrigatória de age (RFC-0004).
+    """Gera a figura de análise de age.
 
-    Painel superior: densidades condicionais p(x|Y=c).
+    Painel superior: histogramas do treino e densidades condicionais p(x|Y=c).
     Painel inferior: curvas ponderadas p(x|Y=c)·P(Y=c) com regiões de decisão.
     Ambos com fronteiras marcadas.
 
@@ -109,6 +111,8 @@ def plot_age_analysis(
         Parâmetros Gaussianos por classe.
     priors : dict[int, float]
         Priors do treino.
+    train_age_0, train_age_1 : np.ndarray
+        Idades de treino por classe, usadas somente nos histogramas empíricos.
     likelihood_boundaries : list[float]
         Fronteiras onde Λ(x) = 1.
     map_boundaries : list[float]
@@ -125,10 +129,19 @@ def plot_age_analysis(
     """
     _setup_style()
 
-    x_min = min(params_0.mean - 4 * np.sqrt(params_0.variance),
-                params_1.mean - 4 * np.sqrt(params_1.variance), 10)
-    x_max = max(params_0.mean + 4 * np.sqrt(params_0.variance),
-                params_1.mean + 4 * np.sqrt(params_1.variance), 95)
+    train_age_0 = np.asarray(train_age_0, dtype=float)
+    train_age_1 = np.asarray(train_age_1, dtype=float)
+    if train_age_0.ndim != 1 or train_age_1.ndim != 1:
+        raise ValueError("As idades de treino devem ser vetores unidimensionais.")
+    if train_age_0.size == 0 or train_age_1.size == 0:
+        raise ValueError("Cada classe deve possuir idades de treino para o histograma.")
+    if not np.isfinite(np.concatenate([train_age_0, train_age_1])).all():
+        raise ValueError("As idades de treino devem ser finitas.")
+
+    observed_min = float(min(train_age_0.min(), train_age_1.min()))
+    observed_max = float(max(train_age_0.max(), train_age_1.max()))
+    x_min = observed_min - 2
+    x_max = observed_max + 2
     x = np.linspace(x_min, x_max, n_points)
 
     pdf_0 = np.exp(gaussian_logpdf(x, params_0))
@@ -139,16 +152,21 @@ def plot_age_analysis(
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
     fig.suptitle("Análise Bayesiana Univariada — age", fontweight="bold")
 
-    # ── Painel superior: densidades condicionais ──
-    ax1.plot(x, pdf_0, color=_COLORS[0], linewidth=2, label=_LABELS[0])
-    ax1.plot(x, pdf_1, color=_COLORS[1], linewidth=2, label=_LABELS[1])
+    # ── Painel superior: comportamento empírico + densidades condicionais ──
+    bins = np.arange(np.floor(observed_min) - 0.5, np.ceil(observed_max) + 1.5, 3)
+    ax1.hist(train_age_0, bins=bins, density=True, alpha=0.22,
+             color=_COLORS[0], label=f"{_LABELS[0]} (hist)")
+    ax1.hist(train_age_1, bins=bins, density=True, alpha=0.22,
+             color=_COLORS[1], label=f"{_LABELS[1]} (hist)")
+    ax1.plot(x, pdf_0, color=_COLORS[0], linewidth=2, label=f"{_LABELS[0]} (Normal)")
+    ax1.plot(x, pdf_1, color=_COLORS[1], linewidth=2, label=f"{_LABELS[1]} (Normal)")
 
     for b in likelihood_boundaries:
         ax1.axvline(b, label=f"Λ=1 ({b:.2f})", **_BOUNDARY_STYLES["likelihood"])
 
     ax1.set_ylabel("Densidade $p(x \\mid Y=c)$")
-    ax1.set_title("Densidades Condicionais")
-    ax1.legend(loc="upper right")
+    ax1.set_title("Comportamento Empírico e Densidades Condicionais (Normal)")
+    ax1.legend(loc="upper right", fontsize=8)
 
     # ── Painel inferior: curvas ponderadas + regiões ──
     ax2.plot(x, weighted_0, color=_COLORS[0], linewidth=2, label=f"{_LABELS[0]} · P(Y=0)")
@@ -199,7 +217,7 @@ def plot_duration_analysis(
     *,
     n_points: int = 1_000,
 ) -> Path:
-    """Gera a figura obrigatória de duration (RFC-0004).
+    """Gera a figura de análise de duration.
 
     Painel superior: histogramas normalizados + densidades Gamma.
     Painel inferior: curvas ponderadas + regiões de decisão.
@@ -230,10 +248,11 @@ def plot_duration_analysis(
     _setup_style()
 
     all_durations = np.concatenate([train_duration_0, train_duration_1])
+    observed_min = float(all_durations.min())
     p99 = float(np.percentile(all_durations, 99))
     total_max = float(all_durations.max())
 
-    x_min = 1.0  # Gamma com loc=0, evitamos x=0
+    x_min = observed_min
     x_max_plot = p99 * 1.15
     x = np.linspace(x_min, x_max_plot, n_points)
 
@@ -262,11 +281,12 @@ def plot_duration_analysis(
     ax1.set_title("Densidades Condicionais (Gamma) e Histogramas")
     ax1.legend(loc="upper right", fontsize=8)
 
-    # Nota do intervalo total
+    # Nota do intervalo observado e do recorte visual da cauda
     ax1.annotate(
-        f"Intervalo total: [1, {total_max:.0f}]s — Exibindo até P99 ≈ {p99:.0f}s",
-        xy=(0.98, 0.95), xycoords="axes fraction",
-        ha="right", va="top", fontsize=8,
+        f"Intervalo observado: [{observed_min:.0f}, {total_max:.0f}]s — "
+        f"Exibindo até 1,15 × P99 ≈ {x_max_plot:.0f}s",
+        xy=(0.02, 0.95), xycoords="axes fraction",
+        ha="left", va="top", fontsize=8,
         bbox=dict(boxstyle="round,pad=0.3", fc="lightyellow", alpha=0.8),
     )
 
@@ -315,7 +335,7 @@ def plot_marital_analysis(
     priors: dict[int, float],
     save_path: Path,
 ) -> Path:
-    """Gera a figura obrigatória de marital (RFC-0004).
+    """Gera a figura de análise de marital.
 
     Painel superior: barras agrupadas P(a_k|Y=c) por categoria e classe.
     Painel inferior: log-Λ por categoria com limiar log(P(Y=0)/P(Y=1)).

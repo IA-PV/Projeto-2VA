@@ -1,0 +1,44 @@
+{
+  "positive_class": 1,
+  "test_size": 905,
+  "confusion_matrix": {
+    "tn": 776,
+    "fp": 25,
+    "fn": 77,
+    "tp": 27
+  },
+  "metrics": {
+    "accuracy": 0.887292817679558,
+    "precision": 0.5192307692307693,
+    "recall": 0.25961538461538464,
+    "f1": 0.3461538461538462
+  },
+  "no_positive_predictions": false,
+  "sklearn_consistency_verified": true,
+  "majority_baseline_accuracy": 0.8850828729281768,
+  "majority_baseline": {
+    "positive_class": 1,
+    "test_size": 905,
+    "confusion_matrix": {
+      "tn": 801,
+      "fp": 0,
+      "fn": 104,
+      "tp": 0
+    },
+    "metrics": {
+      "accuracy": 0.8850828729281768,
+      "precision": 0.0000,
+      "recall": 0.0000,
+      "f1": 0.0000
+    },
+    "no_positive_predictions": true,
+    "sklearn_consistency_verified": true
+  },
+  "run_id": 3,
+  "evaluated_at_utc": "2026-09-06T03:04:40.799946+00:00",
+  "error_analysis_references": {
+    "duration_map_boundary_train": 808.4335120314821,
+    "duration_q95_train": 756.2500,
+    "interpretation": "Referências descritivas do treino; não alteram a regra MAP conjunta."
+  }
+}

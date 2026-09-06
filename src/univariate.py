@@ -1,4 +1,4 @@
-"""Análise Bayesiana univariada — RFC-0004.
+"""Análise Bayesiana univariada.
 
 Responsabilidades
 -----------------
@@ -9,7 +9,7 @@ Responsabilidades
 
 Não deve
 --------
-- Ajustar distribuições (isso é RFC-0003 / distributions.py).
+- Ajustar distribuições (isso é responsabilidade de distributions.py).
 - Ler dados ou gerar figuras (isso é data.py / plotting.py).
 - Usar o conjunto de teste.
 """
@@ -241,7 +241,7 @@ def find_continuous_boundaries(
 ) -> list[float]:
     """Encontra todas as fronteiras onde log_score_diff muda de sinal.
 
-    Procedimento (conforme RFC-0004):
+    Procedimento:
     1. Avaliar a diferença em grade densa no intervalo [lower, upper].
     2. Detectar trocas de sinal.
     3. Refinar cada raiz com brentq.

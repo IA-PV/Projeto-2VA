@@ -1,4 +1,4 @@
-"""Testes do módulo de dados — RFC-0002.
+"""Testes do módulo de dados e contrato de integridade.
 
 Testa:
 - Carregamento correto do CSV.
@@ -6,7 +6,7 @@ Testa:
 - Esquema (17 colunas, nomes, tipos).
 - 12 validações obrigatórias.
 - Codificação do alvo.
-- Split estratificado (contagens exatas da RFC).
+- Split estratificado (contagens exatas da especificação).
 - Artefato de auditoria JSON.
 - Erros esperados para DataFrames inválidos.
 """
@@ -21,6 +21,8 @@ import pandas as pd
 import pytest
 
 from src.config import (
+    AGE_RANGE,
+    DURATION_RANGE,
     EXPECTED_COLUMNS,
     EXPECTED_ROWS,
     EXPECTED_SHA256,
@@ -107,12 +109,19 @@ class TestValidateRawData:
         assert pd.api.types.is_numeric_dtype(raw_df["age"])
         assert np.all(np.isfinite(raw_df["age"]))
 
+    def test_observed_age_range(self, raw_df: pd.DataFrame) -> None:
+        assert (int(raw_df["age"].min()), int(raw_df["age"].max())) == AGE_RANGE
+
     def test_duration_positive(self, raw_df: pd.DataFrame) -> None:
         assert (raw_df["duration"] > 0).all(), "duration deve ser > 0"
 
     def test_duration_numeric_and_finite(self, raw_df: pd.DataFrame) -> None:
         assert pd.api.types.is_numeric_dtype(raw_df["duration"])
         assert np.all(np.isfinite(raw_df["duration"]))
+
+    def test_observed_duration_range(self, raw_df: pd.DataFrame) -> None:
+        observed = (int(raw_df["duration"].min()), int(raw_df["duration"].max()))
+        assert observed == DURATION_RANGE
 
     def test_marital_categories(self, raw_df: pd.DataFrame) -> None:
         assert set(raw_df["marital"].unique()) == set(MARITAL_CATEGORIES)
@@ -149,7 +158,7 @@ class TestValidateRejectsInvalid:
             validate_raw_data(df)
 
     def test_extra_column_rejected(self) -> None:
-        """Caso 5 da RFC-0006: coluna extra deve ser rejeitada."""
+        """Caso de validação: coluna extra deve ser rejeitada."""
         df = self._make_valid_df().assign(extra_col=1)
         with pytest.raises(ValueError, match=r"V03"):
             validate_raw_data(df)
@@ -161,7 +170,7 @@ class TestValidateRejectsInvalid:
             validate_raw_data(df)
 
     def test_incorrect_separator_detected(self, tmp_path: Path) -> None:
-        """Caso 3 da RFC-0006: separador incorreto é detectado."""
+        """Caso de validação: separador incorreto é detectado."""
         bad_csv = tmp_path / "bad_sep.csv"
         bad_csv.write_text("age,job,marital\n30,admin,single\n", encoding="utf-8")
         bad_df = load_bank_data(bad_csv)
@@ -176,7 +185,7 @@ class TestValidateRejectsInvalid:
 
     @pytest.mark.parametrize("col", ["age", "duration", "marital", "y"])
     def test_null_in_any_model_column_rejected(self, col: str) -> None:
-        """Caso 6 da RFC-0006: valor nulo em feature ou target é rejeitado."""
+        """Caso de validação: valor nulo em feature ou target é rejeitado."""
         df = self._make_valid_df()
         df.loc[0, col] = None
         with pytest.raises(ValueError, match=r"V06"):
@@ -184,7 +193,7 @@ class TestValidateRejectsInvalid:
 
     @pytest.mark.parametrize("bad_duration", [0, -1, -50])
     def test_duration_not_positive(self, bad_duration: int) -> None:
-        """Caso 7 da RFC-0006: duration <= 0 é rejeitada."""
+        """Caso de validação: duration <= 0 é rejeitada."""
         df = self._make_valid_df()
         df.loc[0, "duration"] = bad_duration
         with pytest.raises(ValueError, match=r"V08"):
@@ -327,7 +336,7 @@ class TestMakeStratifiedSplit:
         assert len(overlap) == 0
 
     def test_index_union_covers_full_dataset(self, data_split: DataSplit) -> None:
-        """Caso 14 da RFC-0006: união dos índices cobre a base completa."""
+        """Caso de validação: união dos índices cobre a base completa."""
         union = set(data_split.X_train.index) | set(data_split.X_test.index)
         assert union == set(range(EXPECTED_ROWS))
         assert len(data_split.X_train) + len(data_split.X_test) == EXPECTED_ROWS

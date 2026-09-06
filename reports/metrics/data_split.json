@@ -1,0 +1,18 @@
+{
+  "dataset": "bank.csv",
+  "sha256": "dc8d576e9bda0f41ee891251bd84bab9a39ce576cba715aac08adc2374a01fde",
+  "random_state": 42,
+  "test_size": 0.2,
+  "full_counts": {
+    "0": 4000,
+    "1": 521
+  },
+  "train_counts": {
+    "0": 3199,
+    "1": 417
+  },
+  "test_counts": {
+    "0": 801,
+    "1": 104
+  }
+}

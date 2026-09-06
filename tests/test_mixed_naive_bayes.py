@@ -212,7 +212,7 @@ def test_export_is_independent_and_json_serializable(fitted):
 
 
 def test_identical_refit_produces_identical_parameters(training):
-    """Caso 11 da RFC-0006: dois ajustes com os mesmos dados geram parâmetros iguais."""
+    """Caso de validação: dois ajustes com os mesmos dados geram parâmetros iguais."""
     X, y = training
     model1 = MixedNaiveBayes().fit(X, y)
     model2 = MixedNaiveBayes().fit(X, y)
@@ -220,7 +220,7 @@ def test_identical_refit_produces_identical_parameters(training):
 
 
 def test_fit_and_predict_do_not_mutate_input_objects(training):
-    """Caso 12 da RFC-0006: input original não é mutado por fit ou predict."""
+    """Caso de validação: input original não é mutado por fit ou predict."""
     X, y = training
     X_before = X.copy(deep=True)
     y_before = y.copy(deep=True)
@@ -239,7 +239,7 @@ def test_fit_and_predict_do_not_mutate_input_objects(training):
 
 
 def test_no_forbidden_sklearn_naive_bayes_imports():
-    """Caso 14 da RFC-0006: não há import de GaussianNB, CategoricalNB ou estimador equivalente."""
+    """Caso de validação: não há import de GaussianNB, CategoricalNB ou estimador equivalente."""
     src_dir = Path(__file__).resolve().parent.parent / "src"
     target_files = [
         src_dir / "mixed_naive_bayes.py",

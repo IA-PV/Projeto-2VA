@@ -1,4 +1,4 @@
-"""Métricas de avaliação e matriz de confusão — RFC-0006 e RFC-0007.
+"""Métricas de avaliação e matriz de confusão — Avaliação Supervisionada.
 
 Responsabilidades
 -----------------

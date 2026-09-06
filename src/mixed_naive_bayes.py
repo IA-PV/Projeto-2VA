@@ -1,4 +1,4 @@
-"""Naive Bayes próprio para age, duration e marital — RFC-0005.
+"""Naive Bayes próprio para age, duration e marital — Classificador Misto.
 
 A independência condicional é uma aproximação operacional: age e marital
 permanecem relacionados dentro das classes. Os ajustes usam apenas o treino;
@@ -133,7 +133,7 @@ class MixedNaiveBayes:
             if not np.isfinite(logs).all():
                 raise ValueError("Priors e probabilidades categóricas devem ter logs finitos.")
 
-        # As dataclasses e os ajustes da RFC-0003 validam parâmetros, somas
+        # As dataclasses e os ajustes de modelagem probabilística validam parâmetros, somas
         # categóricas e log-densidades. Nenhuma referência a X ou y é guardada.
         self.class_order_ = tuple(CLASS_ORDER)
         self.class_count_ = class_count

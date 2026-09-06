@@ -1,15 +1,20 @@
+# Ambientes virtuais
+.venv/
+venv/
+
+# Bytecode e caches Python
 __pycache__/
 *.py[cod]
+*$py.class
+
+# Testes e cobertura
 .pytest_cache/
 .coverage
 htmlcov/
-.venv/
-venv/
+
+# Notebooks
 .ipynb_checkpoints/
-reports/metrics/*.json
-!reports/metrics/model_parameters.json
-reports/figures/*.png
+
+# Arquivos temporários brutos
 data/raw/*.zip
 data/raw/uci/
-
-rfc

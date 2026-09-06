@@ -1,7 +1,7 @@
-"""Testes de avaliação e métricas — RFC-0006 e RFC-0007.
+"""Testes de avaliação e métricas supervisionadas.
 
 Valida:
-- Fixture manual obrigatória da RFC-0006.
+- Fixture manual de avaliação.
 - Matriz de confusão com convenção linhas=reais, colunas=preditas.
 - Extração dos 4 componentes: VN=2, FP=1, FN=1, VP=2.
 - Fórmulas manuais de acurácia, precisão, recall e F1.
@@ -12,6 +12,7 @@ Valida:
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 import pytest
 from sklearn.metrics import (
     accuracy_score,
@@ -26,22 +27,23 @@ from src.evaluation import (
     compute_majority_baseline,
     compute_metrics,
     extract_confusion_components,
+    summarize_age_by_marital,
 )
 
 
 @pytest.fixture
-def rfc0006_fixture() -> tuple[np.ndarray, np.ndarray]:
-    """Fixture manual obrigatória da RFC-0006."""
+def manual_fixture() -> tuple[np.ndarray, np.ndarray]:
+    """Fixture manual com 6 observações e confusão assimétrica."""
     y_true = np.array([0, 0, 0, 1, 1, 1])
     y_pred = np.array([0, 0, 1, 0, 1, 1])
     return y_true, y_pred
 
 
-class TestRFC0006ManualEvaluation:
-    """Validação da fixture manual descrita na RFC-0006."""
+class TestManualEvaluation:
+    """Validação da fixture manual descrita na especificação de testes."""
 
-    def test_confusion_matrix_values(self, rfc0006_fixture: tuple[np.ndarray, np.ndarray]) -> None:
-        y_true, y_pred = rfc0006_fixture
+    def test_confusion_matrix_values(self, manual_fixture: tuple[np.ndarray, np.ndarray]) -> None:
+        y_true, y_pred = manual_fixture
         cm = compute_confusion_matrix(y_true, y_pred, labels=(0, 1))
 
         # Matriz esperada:
@@ -50,8 +52,8 @@ class TestRFC0006ManualEvaluation:
         expected_cm = np.array([[2, 1], [1, 2]], dtype=int)
         np.testing.assert_array_equal(cm, expected_cm)
 
-    def test_extracted_components(self, rfc0006_fixture: tuple[np.ndarray, np.ndarray]) -> None:
-        y_true, y_pred = rfc0006_fixture
+    def test_extracted_components(self, manual_fixture: tuple[np.ndarray, np.ndarray]) -> None:
+        y_true, y_pred = manual_fixture
         cm = compute_confusion_matrix(y_true, y_pred)
         comps = extract_confusion_components(cm)
 
@@ -60,8 +62,8 @@ class TestRFC0006ManualEvaluation:
         assert comps["fn"] == 1
         assert comps["tp"] == 2
 
-    def test_metrics_values(self, rfc0006_fixture: tuple[np.ndarray, np.ndarray]) -> None:
-        y_true, y_pred = rfc0006_fixture
+    def test_metrics_values(self, manual_fixture: tuple[np.ndarray, np.ndarray]) -> None:
+        y_true, y_pred = manual_fixture
         metrics = compute_metrics(y_true, y_pred, pos_label=1)
 
         # acurácia=4/6, precisão=2/3, recall=2/3, F1=2/3
@@ -70,9 +72,9 @@ class TestRFC0006ManualEvaluation:
         assert metrics["recall"] == pytest.approx(2 / 3, rel=1e-12, abs=1e-12)
         assert metrics["f1"] == pytest.approx(2 / 3, rel=1e-12, abs=1e-12)
 
-    def test_matches_sklearn_oracle(self, rfc0006_fixture: tuple[np.ndarray, np.ndarray]) -> None:
+    def test_matches_sklearn_oracle(self, manual_fixture: tuple[np.ndarray, np.ndarray]) -> None:
         """Compara a implementação manual com scikit-learn como oráculo secundário."""
-        y_true, y_pred = rfc0006_fixture
+        y_true, y_pred = manual_fixture
 
         # Matriz
         cm_manual = compute_confusion_matrix(y_true, y_pred, labels=(0, 1))
@@ -154,3 +156,24 @@ class TestEvaluationRobustnessAndEdgeCases:
     def test_extract_components_rejects_non_2x2_matrix(self) -> None:
         with pytest.raises(ValueError, match=r"\(2, 2\)"):
             extract_confusion_components(np.zeros((3, 3)))
+
+
+def test_summarize_age_by_marital_uses_within_class_groups() -> None:
+    """O diagnóstico preserva classes e categorias sem misturar observações."""
+    X = pd.DataFrame(
+        {
+            "age": [20, 40, 60, 30, 50],
+            "duration": [100, 200, 300, 400, 500],
+            "marital": ["single", "married", "married", "single", "divorced"],
+        },
+        index=[10, 20, 30, 40, 50],
+    )
+    y = pd.Series([0, 0, 0, 1, 1], index=X.index)
+
+    result = summarize_age_by_marital(X, y).set_index(["actual_class", "marital"])
+
+    assert result.loc[(0, "married"), "n"] == 2
+    assert result.loc[(0, "married"), "age_mean"] == pytest.approx(50.0)
+    assert result.loc[(0, "single"), "age_median"] == pytest.approx(20.0)
+    assert result.loc[(1, "divorced"), "age_mean"] == pytest.approx(50.0)
+    assert result.loc[(1, "single"), "age_mean"] == pytest.approx(30.0)

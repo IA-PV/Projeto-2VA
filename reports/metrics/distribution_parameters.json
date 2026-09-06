@@ -1,0 +1,64 @@
+{
+  "priors": {
+    "0": 0.884679203539823,
+    "1": 0.115320796460177
+  },
+  "prior_odds_ratio": 7.67146282973621,
+  "age": {
+    "distribution": "Normal",
+    "class_0": {
+      "mean": 40.87183494842138,
+      "variance": 101.24521798338628,
+      "std": 10.062068275627347
+    },
+    "class_1": {
+      "mean": 42.36450839328537,
+      "variance": 170.69686984225572,
+      "std": 13.065101218217015
+    },
+    "likelihood_boundaries": [
+      26.950114573699995,
+      50.44157680979203
+    ],
+    "map_boundaries": [
+      72.63671410521202
+    ]
+  },
+  "duration": {
+    "distribution": "Gamma",
+    "class_0": {
+      "shape": 1.5285353007945863,
+      "scale": 147.44780894291458,
+      "mean": 225.37918099406062
+    },
+    "class_1": {
+      "shape": 2.2527611782718195,
+      "scale": 247.81951271297672,
+      "mean": 558.2781774580336
+    },
+    "likelihood_boundaries": [
+      315.0971125889571
+    ],
+    "map_boundaries": [
+      808.4335120314821
+    ]
+  },
+  "marital": {
+    "distribution": "Categorical (Laplace α=1)",
+    "class_0": {
+      "divorced": 0.1146158650843223,
+      "married": 0.6258588382261087,
+      "single": 0.25952529668956903
+    },
+    "class_1": {
+      "divorced": 0.15476190476190477,
+      "married": 0.5261904761904762,
+      "single": 0.319047619047619
+    },
+    "categorical_rule": {
+      "divorced": 0,
+      "married": 0,
+      "single": 0
+    }
+  }
+}

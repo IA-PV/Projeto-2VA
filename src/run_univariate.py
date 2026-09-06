@@ -1,15 +1,16 @@
-"""Runner da análise Bayesiana univariada — RFC-0004.
+"""Runner da análise Bayesiana univariada.
 
 Execução: python -m src.run_univariate
 
 Este script:
-1. Consome o DataSplit via data.py (RFC-0002).
-2. Ajusta modelos por classe via distributions.py (RFC-0003).
+1. Consome o DataSplit via data.py.
+2. Ajusta modelos por classe via distributions.py.
 3. Calcula priors do treino.
 4. Executa a análise univariada para age, duration e marital.
 5. Encontra fronteiras (likelihood equality e MAP).
-6. Gera tabelas CSV, JSON de parâmetros e figuras PNG.
-7. Imprime interpretação e comparação qualitativa.
+6. Quantifica a associação age × marital dentro de cada classe.
+7. Gera tabelas CSV, JSON de parâmetros e figuras PNG.
+8. Imprime interpretação e comparação qualitativa.
 """
 
 from __future__ import annotations
@@ -45,6 +46,7 @@ from src.distributions import (
     gamma_logpdf,
     gaussian_logpdf,
 )
+from src.evaluation import summarize_age_by_marital
 from src.plotting import (
     plot_age_analysis,
     plot_duration_analysis,
@@ -124,7 +126,7 @@ def _print_boundaries(name: str, boundaries: list[float], kind: str) -> None:
 
 
 def run() -> None:
-    """Executa o pipeline completo da RFC-0004."""
+    """Executa o pipeline completo da análise univariada."""
     # ── 1. Carregar e validar dados ──
     logger.info("Carregando dados...")
     df = load_bank_data(DATA_PATH)
@@ -142,7 +144,7 @@ def run() -> None:
     logger.info("Limiar MAP (odds ratio): %.5f", prior_odds)
 
     print(f"\n{'#'*80}")
-    print(f"  RFC-0004: Experimentos Bayesianos Univariados")
+    print(f"  Experimentos Bayesianos Univariados")
     print(f"{'#'*80}")
     print(f"\n  Priors do treino:")
     print(f"    P(Y=0) = {priors[0]:.6f}  ({(y_train == 0).sum()} amostras)")
@@ -306,8 +308,8 @@ def run() -> None:
     print("     • marital: posterior muda pouco, nunca inverte a prior")
     print()
     print("  5. Limitações da hipótese:")
-    print("     • age: Gaussiana razoável mas sem poder discriminativo")
-    print("     • duration: Gamma é superior à Exponencial (AIC), boa aderência")
+    print("     • age: Normal interpretável, mas com suporte e simetria apenas aproximados")
+    print("     • duration: Gamma tem melhor ajuste relativo que a Exponencial (AIC e KS)")
     print("     • marital: Laplace smoothing necessário para robustez")
     print()
     print("  Conclusão: duration >> age > marital em poder discriminativo univariado")
@@ -318,7 +320,12 @@ def run() -> None:
     print(f"{'─'*80}")
     if age_map_boundaries:
         boundaries_str = " e ".join(f"{b:.2f}" for b in age_map_boundaries)
-        print(f"  h₁(age): classe 1 se age > {boundaries_str}; caso contrário classe 0")
+        observed_age_min, observed_age_max = age_range
+        print(
+            f"  h₁(age), no domínio observado [{observed_age_min:.0f}, "
+            f"{observed_age_max:.0f}]: classe 1 se age > {boundaries_str}; "
+            "caso contrário classe 0"
+        )
     else:
         print("  h₁(age): classe 0 para todos os valores (nenhuma fronteira MAP)")
     if dur_map_boundaries:
@@ -334,6 +341,13 @@ def run() -> None:
     # CSVs
     _save_result_csv(age_result, UNIVARIATE_METRICS_DIR / "age_univariate_examples.csv")
     _save_result_csv(dur_result, UNIVARIATE_METRICS_DIR / "duration_univariate_examples.csv")
+
+    # Evidência quantitativa, somente do treino, para a limitação da hipótese
+    # de independência condicional entre age e marital.
+    age_by_marital = summarize_age_by_marital(X_train, y_train)
+    age_by_marital_path = UNIVARIATE_METRICS_DIR / "age_by_marital_within_class.csv"
+    age_by_marital.to_csv(age_by_marital_path, index=False, float_format="%.8f")
+    logger.info("Diagnóstico de independência salvo: %s", age_by_marital_path)
 
     # Marital CSV (valores string)
     marital_df = pd.DataFrame({
@@ -388,6 +402,8 @@ def run() -> None:
     # Figuras
     plot_age_analysis(
         age_params_0, age_params_1, priors,
+        X_train.loc[mask_0, "age"].to_numpy(),
+        X_train.loc[mask_1, "age"].to_numpy(),
         age_lr_boundaries, age_map_boundaries,
         UNIVARIATE_FIGURES_DIR / "age_conditional_and_decision.png",
     )
