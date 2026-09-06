@@ -1,4 +1,4 @@
-"""Avaliação oficial congelada — RFC-0007. Execute python -m src.run_evaluation.
+"""Avaliação oficial congelada. Execute python -m src.run_evaluation.
 
 A checklist é persistida antes de predict; cada tentativa fica no histórico,
 inclusive falhas. Reavaliações exigem motivo e arquivos alterados explícitos.
@@ -51,10 +51,10 @@ def _write_json(path: Path, payload: dict | list) -> None:
 
 
 def _run_prerequisites() -> dict:
-    """Verifica RFCs 2–6 e conclui análises exclusivamente no treino.
+    """Verifica requisitos e conclui análises exclusivamente no treino.
 
     Exclui apenas o teste legado que faz inferência em X_test. Ele já existia
-    antes desta RFC; não é necessário consultar o holdout para abrir o portão.
+    antes desta etapa; não é necessário consultar o holdout para abrir o portão.
     """
     env = dict(os.environ, PYTHONIOENCODING="utf-8", MPLBACKEND="Agg")
     commands = {
@@ -85,7 +85,7 @@ def run(*, reason: str | None = None, changed_files: list[str] | None = None) ->
         if not reason or not reason.strip() or not changed_files:
             raise ValueError("Reavaliação exige --reason e --changed-file; consulte evaluation_history.json.")
     if (TEST_SIZE, RANDOM_STATE, LAPLACE_ALPHA) != (0.20, 42, 1.0):
-        raise ValueError("Configuração diverge da RFC-0007 congelada.")
+        raise ValueError("Configuração diverge da especificação congelada.")
 
     evidence = _run_prerequisites()
     raw = load_bank_data(ROOT / DATA_PATH)
@@ -122,11 +122,11 @@ def run(*, reason: str | None = None, changed_files: list[str] | None = None) ->
     }
     checklist = {
         "recorded_at_utc": _utc_now(),
-        "rfc_0002": "Contrato verificado por validate_raw_data e testes de dados.",
-        "rfc_0003": "Normal / Gamma / Categórica; priors empíricas; parâmetros do treino.",
-        "rfc_0004": "Três análises concluídas por src.run_univariate antes da avaliação.",
-        "rfc_0005": "MixedNaiveBayes ajustado exclusivamente em 3616 observações de treino.",
-        "rfc_0006": evidence["tests"],
+        "data_contract": "Contrato verificado por validate_raw_data e testes de dados.",
+        "probabilistic_modeling": "Normal / Gamma / Categórica; priors empíricas; parâmetros do treino.",
+        "univariate_analysis": "Três análises concluídas por src.run_univariate antes da avaliação.",
+        "model_fit": "MixedNaiveBayes ajustado exclusivamente em 3616 observações de treino.",
+        "automated_tests": evidence["tests"],
         "univariate_completed_at_utc": evidence["univariate"]["completed_at_utc"],
         "configuration": {"test_size": TEST_SIZE, "random_state": RANDOM_STATE, "alpha": LAPLACE_ALPHA},
         "source_sha256": _source_hashes(),
@@ -146,7 +146,7 @@ def run(*, reason: str | None = None, changed_files: list[str] | None = None) ->
     }
     _write_json(ROOT / CHECKLIST, checklist)
     entry = {"run_id": len(history) + 1, "started_at_utc": _utc_now(), "status": "started",
-             "reason": reason or "Avaliação oficial da RFC-0007 após verificação das dependências.",
+             "reason": reason or "Avaliação oficial após verificação das dependências.",
              "changed_files": changed_files or [], "checklist": checklist,
              "model_parameters": parameters}
     history.append(entry)

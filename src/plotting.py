@@ -1,9 +1,9 @@
-"""Visualizações da análise Bayesiana univariada — RFC-0004.
+"""Visualizações da análise Bayesiana univariada.
 
 Responsabilidades
 -----------------
 - Gerar figuras reprodutíveis para age, duration e marital.
-- Seguir o padrão visual definido na RFC.
+- Seguir o padrão visual definido na especificação.
 
 Não deve
 --------
@@ -97,7 +97,7 @@ def plot_age_analysis(
     *,
     n_points: int = 1_000,
 ) -> Path:
-    """Gera a figura obrigatória de age (RFC-0004).
+    """Gera a figura de análise de age.
 
     Painel superior: densidades condicionais p(x|Y=c).
     Painel inferior: curvas ponderadas p(x|Y=c)·P(Y=c) com regiões de decisão.
@@ -199,7 +199,7 @@ def plot_duration_analysis(
     *,
     n_points: int = 1_000,
 ) -> Path:
-    """Gera a figura obrigatória de duration (RFC-0004).
+    """Gera a figura de análise de duration.
 
     Painel superior: histogramas normalizados + densidades Gamma.
     Painel inferior: curvas ponderadas + regiões de decisão.
@@ -315,7 +315,7 @@ def plot_marital_analysis(
     priors: dict[int, float],
     save_path: Path,
 ) -> Path:
-    """Gera a figura obrigatória de marital (RFC-0004).
+    """Gera a figura de análise de marital.
 
     Painel superior: barras agrupadas P(a_k|Y=c) por categoria e classe.
     Painel inferior: log-Λ por categoria com limiar log(P(Y=0)/P(Y=1)).

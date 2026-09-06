@@ -1,4 +1,4 @@
-"""Ingestão, validação, seleção e divisão dos dados — RFC-0002.
+"""Ingestão, validação, seleção e divisão dos dados.
 
 Responsabilidades
 -----------------
@@ -126,7 +126,7 @@ def validate_raw_data(
     *,
     strict_hash: bool = True,
 ) -> None:
-    """Executa as 12 validações obrigatórias da RFC-0002.
+    """Executa as 12 validações obrigatórias do contrato de dados.
 
     Parameters
     ----------
@@ -261,7 +261,7 @@ def validate_raw_data(
             f"{separator}{separator.join(errors)}"
         )
 
-    logger.info("✅ Todas as 12 validações passaram.")
+    logger.info("[OK] Todas as 12 validações passaram.")
 
 
 def prepare_model_frame(

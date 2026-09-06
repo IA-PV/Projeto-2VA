@@ -1,10 +1,10 @@
-"""Estimação e log-densidades explícitas — RFC-0003.
+"""Estimação e log-densidades explícitas — Modelagem Probabilística.
 
 Os ajustes recebem exclusivamente observações de treino (por classe para os
 atributos). Este módulo não lê dados nem realiza splits ou classificação.
 SciPy resolve apenas o MLE Gamma com localização fixa em zero, fornece gammaln
 e as CDFs/estatística KS de diagnóstico. As log-densidades são implementadas
-aqui; combinação de evidências e decisão pertencem às RFCs consumidoras.
+aqui; combinação de evidências e decisão pertencem aos módulos de classificação.
 """
 
 from __future__ import annotations

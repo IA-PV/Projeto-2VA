@@ -1,10 +1,10 @@
-"""Runner da análise Bayesiana univariada — RFC-0004.
+"""Runner da análise Bayesiana univariada.
 
 Execução: python -m src.run_univariate
 
 Este script:
-1. Consome o DataSplit via data.py (RFC-0002).
-2. Ajusta modelos por classe via distributions.py (RFC-0003).
+1. Consome o DataSplit via data.py.
+2. Ajusta modelos por classe via distributions.py.
 3. Calcula priors do treino.
 4. Executa a análise univariada para age, duration e marital.
 5. Encontra fronteiras (likelihood equality e MAP).
@@ -124,7 +124,7 @@ def _print_boundaries(name: str, boundaries: list[float], kind: str) -> None:
 
 
 def run() -> None:
-    """Executa o pipeline completo da RFC-0004."""
+    """Executa o pipeline completo da análise univariada."""
     # ── 1. Carregar e validar dados ──
     logger.info("Carregando dados...")
     df = load_bank_data(DATA_PATH)
@@ -142,7 +142,7 @@ def run() -> None:
     logger.info("Limiar MAP (odds ratio): %.5f", prior_odds)
 
     print(f"\n{'#'*80}")
-    print(f"  RFC-0004: Experimentos Bayesianos Univariados")
+    print(f"  Experimentos Bayesianos Univariados")
     print(f"{'#'*80}")
     print(f"\n  Priors do treino:")
     print(f"    P(Y=0) = {priors[0]:.6f}  ({(y_train == 0).sum()} amostras)")
