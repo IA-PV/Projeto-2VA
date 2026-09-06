@@ -2,6 +2,70 @@
 
 Implementação rigorosa e reproduzível de um classificador probabilístico supervisionado baseado em **Inferência Bayesiana Pura** sobre o dataset bancário [UCI Bank Marketing](https://archive.ics.uci.edu/dataset/222/bank+marketing). A regra do classificador foi implementada pela dupla, sem uso de um classificador pronto; o SciPy é empregado apenas no ajuste numérico do MLE da distribuição Gamma e em diagnósticos auxiliares.
 
+## Execução rápida — passo a passo
+
+O roteiro abaixo parte de uma máquina com Python 3.12 ou superior. Se o repositório já
+estiver baixado, entre na pasta `Projeto-2VA` e comece pela criação do ambiente virtual.
+
+### Windows — PowerShell
+
+```powershell
+# 1. Baixar o projeto e entrar na raiz
+git clone https://github.com/IA-PV/Projeto-2VA.git
+cd Projeto-2VA
+
+# 2. Criar e ativar o ambiente virtual
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+
+# 3. Instalar as dependências fixadas
+python -m pip install -r requirements.txt
+
+# 4. Validar o dataset, o split e o ajuste do modelo
+python -m src.run_experiment --validate-only
+
+# 5. Executar todos os testes automatizados
+python -m pytest -q
+
+# 6. Reproduzir todas as análises, figuras e a avaliação final
+python -m src.run_experiment --force-reproduce
+
+# 7. Consultar as métricas finais
+Get-Content .\reports\metrics\final_metrics.json
+```
+
+### Linux ou macOS — Bash
+
+```bash
+# 1. Baixar o projeto e entrar na raiz
+git clone https://github.com/IA-PV/Projeto-2VA.git
+cd Projeto-2VA
+
+# 2. Criar e ativar o ambiente virtual
+python3 -m venv .venv
+source .venv/bin/activate
+
+# 3. Instalar as dependências fixadas
+python -m pip install -r requirements.txt
+
+# 4. Validar o dataset, o split e o ajuste do modelo
+python -m src.run_experiment --validate-only
+
+# 5. Executar todos os testes automatizados
+python -m pytest -q
+
+# 6. Reproduzir todas as análises, figuras e a avaliação final
+python -m src.run_experiment --force-reproduce
+
+# 7. Consultar as métricas finais
+cat reports/metrics/final_metrics.json
+```
+
+As tabelas são gravadas em `reports/metrics/` e as figuras em `reports/figures/`.
+O comando com `--force-reproduce` acessa o holdout e registra uma nova execução auditada;
+para regenerar apenas as análises preservando a avaliação existente, use
+`python -m src.run_experiment`.
+
 ---
 
 ## 1. Título e Objetivo
@@ -277,7 +341,7 @@ python -m pip install -r requirements.txt
 
 ---
 
-## 11. Comandos de Validação, Teste e Execução
+## 11. Referência dos Comandos de Validação, Teste e Execução
 
 ### 11.1 Validação de Dados e Ambiente (Somente Leitura)
 Executa todas as checagens formais de contrato, esquema, hash e split sem criar ou modificar nenhum arquivo em disco:
